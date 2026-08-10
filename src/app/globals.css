@@ -1,0 +1,276 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* ==========================================================================
+   BARBERÍA OS — Sistema de diseño
+   Tailwind 4 usa configuración CSS-first: la paleta y los tokens viven aquí,
+   no en tailwind.config.js (que ya no existe).
+
+   Concepto: "sastrería urbana". Negro profundo, filete dorado finísimo,
+   serif de alto contraste para titulares. Sin poste de barbero, sin
+   degradados llamativos, sin sombras difusas.
+   ========================================================================== */
+
+@theme {
+  /* ---- Paleta de marca -------------------------------------------------- */
+  --color-carbon: #0b0b0d;
+  --color-grafito: #17181c;
+  --color-grafito-claro: #1f2126;
+  --color-marfil: #efe7da;
+  --color-dorado: #b88942;
+  --color-dorado-claro: #d6a85e;
+  --color-borgona: #5b1e2d;
+  --color-borgona-claro: #7a2a3d;
+
+  /* Escala neutra derivada del carbón, no gris puro: conserva el matiz frío
+     que evita el aspecto de "pantalla apagada". */
+  --color-tinta-50: #faf7f1;
+  --color-tinta-100: #f3eee4;
+  --color-tinta-200: #e4dccd;
+  --color-tinta-300: #c9c1b2;
+  --color-tinta-400: #8e8d8a;
+  --color-tinta-500: #6e7079;
+  --color-tinta-600: #4a4c53;
+  --color-tinta-700: #2e3036;
+  --color-tinta-800: #1f2126;
+  --color-tinta-900: #14151a;
+
+  /* ---- Estados ---------------------------------------------------------- */
+  --color-exito: #3f7d55;
+  --color-exito-suave: #1c2a21;
+  --color-aviso: #b8863a;
+  --color-aviso-suave: #2b2214;
+  --color-peligro: #a8404f;
+  --color-peligro-suave: #2a1419;
+  --color-info: #4a6b8a;
+
+  /* ---- Tipografía ------------------------------------------------------- */
+  /* Las variables --fuente-* las inyecta next/font/local en el <html>.
+     Ver src/lib/fuentes.ts */
+  --font-display: var(--fuente-display), 'Iowan Old Style', Georgia, serif;
+  --font-sans: var(--fuente-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--fuente-mono), ui-monospace, 'SF Mono', monospace;
+
+  /* ---- Radios: esquinas casi rectas, nada de burbujas ------------------- */
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+
+  /* ---- Movimiento ------------------------------------------------------- */
+  --ease-salida: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-aparecer: aparecer 240ms var(--ease-salida) both;
+
+  /* ---- Espaciado de la barra lateral ------------------------------------ */
+  --spacing-lateral: 15rem;
+  --spacing-lateral-min: 3.5rem;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   Variables semánticas.
+
+   El sitio público es oscuro siempre: la identidad lo exige.
+   El panel arranca oscuro pero admite modo claro (mostrador con luz directa),
+   activado por la clase .tema-claro sobre <html>.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    --fondo: var(--color-carbon);
+    --superficie: var(--color-grafito);
+    --superficie-alta: var(--color-grafito-claro);
+    --texto: var(--color-marfil);
+    --texto-suave: color-mix(in srgb, var(--color-marfil) 62%, transparent);
+    --texto-tenue: color-mix(in srgb, var(--color-marfil) 40%, transparent);
+    --borde: color-mix(in srgb, var(--color-marfil) 12%, transparent);
+    --borde-fuerte: color-mix(in srgb, var(--color-dorado) 45%, transparent);
+    --acento: var(--color-dorado);
+    --acento-texto: var(--color-carbon);
+    --anillo: var(--color-dorado);
+  }
+
+  .tema-claro {
+    --fondo: var(--color-tinta-50);
+    --superficie: #ffffff;
+    --superficie-alta: var(--color-tinta-100);
+    --texto: var(--color-tinta-900);
+    --texto-suave: var(--color-tinta-600);
+    --texto-tenue: var(--color-tinta-500);
+    --borde: var(--color-tinta-200);
+    --borde-fuerte: color-mix(in srgb, var(--color-dorado) 60%, transparent);
+    --acento: #8f6828;
+    --acento-texto: #ffffff;
+    --anillo: #8f6828;
+  }
+
+  * {
+    border-color: var(--borde);
+  }
+
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html.tema-claro {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--fondo);
+    color: var(--texto);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Los números se alinean en columna: precios, totales, existencias. */
+  table,
+  .cifras,
+  input[type='number'] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1,
+  h2,
+  h3,
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+  }
+
+  /* Foco visible dorado en todo el sistema. Nunca se elimina el contorno. */
+  :focus-visible {
+    outline: 2px solid var(--anillo);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-dorado) 30%, transparent);
+    color: var(--texto);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ==========================================================================
+   Utilidades propias del sistema
+   ========================================================================== */
+
+@utility etiqueta {
+  /* Versalitas espaciadas: el recurso que da el aire de etiqueta de producto. */
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+@utility filete {
+  /* Filete dorado de 1px: la firma visual de la marca. */
+  position: relative;
+}
+@utility filete-base {
+  border-bottom: 1px solid var(--borde-fuerte);
+}
+
+@utility grano {
+  /* Textura sutil que quita el aspecto plano de plantilla. */
+  position: relative;
+}
+
+@utility textura-lineas {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 14px,
+    color-mix(in srgb, var(--tema-texto) 3%, transparent) 15px
+  );
+}
+
+@utility textura-trama {
+  background-image:
+    linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--tema-texto) 3%, transparent) 25%,
+      transparent 25%
+    ),
+    linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--tema-texto) 3%, transparent) 25%,
+      transparent 25%
+    );
+  background-position:
+    0 0,
+    8px 8px;
+  background-size: 16px 16px;
+}
+
+@utility superficie {
+  background-color: var(--superficie);
+  border: 1px solid var(--borde);
+}
+
+@utility contenedor-app {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  max-width: 80rem;
+}
+
+@layer components {
+  /* Subrayado dorado que se extiende al pasar el cursor. */
+  .enlace-filete {
+    position: relative;
+    display: inline-block;
+  }
+  .enlace-filete::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    height: 1px;
+    width: 0;
+    background-color: var(--acento);
+    transition: width 240ms var(--ease-salida);
+  }
+  .enlace-filete:hover::after,
+  .enlace-filete:focus-visible::after {
+    width: 100%;
+  }
+
+  /* Capa de grano aplicada a las secciones oscuras del sitio público. */
+  .grano::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23r)'/%3E%3C/svg%3E");
+  }
+}

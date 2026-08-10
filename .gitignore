@@ -1,0 +1,48 @@
+# dependencias
+node_modules/
+.pnp
+.pnp.js
+
+# build
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# entorno — NUNCA subir
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# pruebas
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# supabase
+supabase/.branches
+supabase/.temp
+supabase/.env
+
+# editor y sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# vercel
+.vercel
+actualizacion-privacidad-y-sitio-publico-barberia-os/

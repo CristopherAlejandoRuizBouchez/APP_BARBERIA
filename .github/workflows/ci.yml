@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Valores mínimos para que el build pase sin credenciales reales.
+  # src/lib/env-parseo.ts falla si falta alguno, que es exactamente lo que
+  # queremos: el fallo ocurre en CI, no en producción. Las opcionales se dejan
+  # ausentes a propósito, para comprobar que el proyecto arranca sin ellas.
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  NEXT_PUBLIC_PLATFORM_NAME: Barbería OS
+  NEXT_PUBLIC_BASE_DOMAIN: localhost
+  NEXT_PUBLIC_LOCALE: es-MX
+  NEXT_PUBLIC_MONEDA: MXN
+  NEXT_PUBLIC_ZONA_HORARIA_POR_DEFECTO: America/Mexico_City
+
+jobs:
+  verificar:
+    name: Comandos de cierre de fase
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # ─── Los cinco comandos de cierre, en orden ───────────────────────────
+      - name: 1 · Instalación
+        run: pnpm install --frozen-lockfile
+
+      - name: 2 · Linter
+        run: pnpm lint
+
+      - name: 3 · Typecheck
+        run: pnpm typecheck
+
+      - name: 4 · Pruebas unitarias
+        run: pnpm test
+
+      - name: 5 · Build de producción
+        run: pnpm build
+
+      - name: Formato
+        run: pnpm format:check
+
+  e2e:
+    name: Pruebas de extremo a extremo
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: verificar
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: reporte-playwright
+          path: playwright-report/
+          retention-days: 7
+
+  seguridad:
+    name: Auditoría de dependencias y secretos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Vulnerabilidades altas o críticas
+        run: pnpm audit --audit-level high
+
+      # Si alguien pega una llave por error, CI falla antes del merge.
+      - name: Búsqueda de secretos en el historial
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
