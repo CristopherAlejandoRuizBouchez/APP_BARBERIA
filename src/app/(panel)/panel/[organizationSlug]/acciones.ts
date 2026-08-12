@@ -365,6 +365,19 @@ export async function guardarApariencia(slug: string, formData: FormData) {
     )
       throw new Error('DATOS_INVALIDOS');
 
+    const mostrarNosotros = formData.get('mostrar_nosotros') === 'on';
+    const nosotrosTitulo = z.string().trim().max(120).parse(valor(formData, 'nosotros_titulo'));
+    const nosotrosHistoria = z
+      .string()
+      .trim()
+      .max(2000)
+      .parse(valor(formData, 'nosotros_historia'));
+    const nosotrosFrase = z.string().trim().max(180).parse(valor(formData, 'nosotros_frase'));
+
+    if (mostrarNosotros && (nosotrosTitulo.length < 2 || nosotrosHistoria.length < 20)) {
+      throw new Error('DATOS_INVALIDOS');
+    }
+
     const ubicacion = z
       .object({
         ciudad: z.string().trim().min(2).max(100),
@@ -396,6 +409,10 @@ export async function guardarApariencia(slug: string, formData: FormData) {
         fuente_cuerpo: tema.fuenteCuerpo,
         radio_bordes: tema.radioBordes,
         textura_fondo: tema.textura,
+        nosotros_titulo: nosotrosTitulo || null,
+        nosotros_historia: nosotrosHistoria || null,
+        nosotros_frase: nosotrosFrase || null,
+        mostrar_nosotros: mostrarNosotros,
         publicado_en: new Date().toISOString(),
         actualizado_por: user.id,
       })

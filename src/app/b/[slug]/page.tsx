@@ -26,7 +26,7 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
 
   const supabase = crearClientePublico();
 
-  const [tema, sucursales, servicios, barberos] = await Promise.all([
+  const [tema, sucursales, servicios, barberos, nosotros] = await Promise.all([
     temaDeOrganizacion(org.id),
     sucursalesDeOrganizacion(org.id),
     supabase
@@ -44,6 +44,11 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
       .eq('activo', true)
       .order('orden')
       .limit(8),
+    supabase
+      .from('organization_themes')
+      .select('mostrar_nosotros, nosotros_titulo, nosotros_historia, nosotros_frase')
+      .eq('organization_id', org.id)
+      .maybeSingle(),
   ]);
 
   const definicion = definicionDe(tema?.plantilla);
@@ -52,6 +57,10 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
   const base = `/b/${slug}`;
   const listaServicios = servicios.data ?? [];
   const listaBarberos = barberos.data ?? [];
+  const contenidoNosotros = nosotros.data;
+  const mostrarNosotros = Boolean(
+    contenidoNosotros?.mostrar_nosotros && contenidoNosotros.nosotros_historia?.trim()
+  );
   const ubicacion = sucursales[0] ?? null;
   const direccionCompleta = ubicacion
     ? [ubicacion.direccionCorta, ubicacion.ciudad].filter(Boolean).join(', ')
@@ -192,6 +201,104 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
           />
         ) : null}
       </section>
+
+      {/* ── NOSOTROS — historia e identidad de la barbería ─────────────── */}
+      {mostrarNosotros ? (
+        <section
+          className="relative overflow-hidden border-b"
+          style={{ borderColor: 'var(--tema-borde)' }}
+          aria-labelledby="titulo-nosotros"
+        >
+          <div
+            aria-hidden="true"
+            className="absolute -right-16 top-0 select-none font-[family-name:var(--tema-fuente-titulos)] text-[16rem] leading-none opacity-[0.035]"
+          >
+            01
+          </div>
+
+          <div
+            className={cn(
+              contenedor,
+              'relative grid items-stretch gap-0 py-16 lg:grid-cols-2 lg:py-24'
+            )}
+            style={anchoEstilo}
+          >
+            <div
+              className="relative min-h-[25rem] overflow-hidden border bg-cover bg-center lg:min-h-[34rem]"
+              style={{
+                borderColor: 'var(--tema-borde)',
+                backgroundColor: 'var(--tema-superficie)',
+                backgroundImage: tema?.portadaUrl
+                  ? `linear-gradient(180deg, color-mix(in srgb, var(--tema-fondo) 5%, transparent), color-mix(in srgb, var(--tema-fondo) 72%, transparent)), url("${tema.portadaUrl}")`
+                  : 'radial-gradient(120% 100% at 20% 10%, var(--tema-primario) 0%, var(--tema-superficie) 38%, var(--tema-fondo) 100%)',
+              }}
+            >
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-5 p-7">
+                <div>
+                  <p className="etiqueta" style={{ color: 'var(--tema-primario)' }}>
+                    Nuestra esencia
+                  </p>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-white/75">
+                    Tradición, detalle y una experiencia hecha a la medida.
+                  </p>
+                </div>
+                <span
+                  className="font-[family-name:var(--tema-fuente-titulos)] text-7xl leading-none"
+                  style={{ color: 'var(--tema-primario)' }}
+                  aria-hidden="true"
+                >
+                  01
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="flex flex-col justify-center border border-t-0 p-7 sm:p-10 lg:border-l-0 lg:border-t lg:p-14"
+              style={{
+                borderColor: 'var(--tema-borde)',
+                background: 'var(--tema-superficie)',
+              }}
+            >
+              <p className="etiqueta" style={{ color: 'var(--tema-primario)' }}>
+                Nosotros
+              </p>
+              <h2
+                id="titulo-nosotros"
+                className="mt-4 font-[family-name:var(--tema-fuente-titulos)] text-4xl leading-tight sm:text-5xl"
+              >
+                {contenidoNosotros?.nosotros_titulo || 'Más que una barbería'}
+              </h2>
+              <span
+                className="mt-6 block h-px w-20"
+                style={{ background: 'var(--tema-primario)' }}
+                aria-hidden="true"
+              />
+              <p
+                className="mt-7 whitespace-pre-line text-base leading-8 sm:text-lg"
+                style={{ color: 'var(--tema-texto-suave)' }}
+              >
+                {contenidoNosotros?.nosotros_historia}
+              </p>
+
+              {contenidoNosotros?.nosotros_frase ? (
+                <blockquote
+                  className="mt-8 border-l-2 pl-5 font-[family-name:var(--tema-fuente-titulos)] text-xl italic leading-8"
+                  style={{ borderColor: 'var(--tema-primario)' }}
+                >
+                  “{contenidoNosotros.nosotros_frase}”
+                </blockquote>
+              ) : null}
+
+              <Boton comoHijo variante="contorno" className="mt-9 self-start">
+                <Link href={`${base}/reservar`}>
+                  Reserva tu experiencia
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Boton>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* ── SERVICIOS — rejilla, carta, lista o columnas ────────────────── */}
       {listaServicios.length > 0 ? (

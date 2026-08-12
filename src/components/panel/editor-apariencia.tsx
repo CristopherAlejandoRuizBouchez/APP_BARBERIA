@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import {
+  BookOpen,
   Check,
   ExternalLink,
   ImagePlus,
@@ -33,6 +34,10 @@ export type TemaInicialEditor = {
   portadaUrl: string;
   eslogan: string;
   descripcion: string;
+  nosotrosTitulo: string;
+  nosotrosHistoria: string;
+  nosotrosFrase: string;
+  mostrarNosotros: boolean;
   colorPrimario: string;
   colorSecundario: string;
   colorFondo: string;
@@ -125,6 +130,10 @@ export function EditorApariencia({
   });
   const [eslogan, setEslogan] = React.useState(temaInicial.eslogan);
   const [descripcion, setDescripcion] = React.useState(temaInicial.descripcion);
+  const [nosotrosTitulo, setNosotrosTitulo] = React.useState(temaInicial.nosotrosTitulo);
+  const [nosotrosHistoria, setNosotrosHistoria] = React.useState(temaInicial.nosotrosHistoria);
+  const [nosotrosFrase, setNosotrosFrase] = React.useState(temaInicial.nosotrosFrase);
+  const [mostrarNosotros, setMostrarNosotros] = React.useState(temaInicial.mostrarNosotros);
   const [logoUrl, setLogoUrl] = React.useState(temaInicial.logoUrl);
   const [portadaUrl, setPortadaUrl] = React.useState(temaInicial.portadaUrl);
   const [fuenteTitulos, setFuenteTitulos] = React.useState(temaInicial.fuenteTitulos);
@@ -534,6 +543,121 @@ export function EditorApariencia({
             <p className="mt-2 text-xs text-[var(--texto-tenue)]">
               Google Maps localizará la barbería usando esta dirección. No requiere una API de pago.
             </p>
+          </div>
+        </section>
+
+        <section className="border border-[var(--borde)] bg-[var(--superficie)] p-5">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="etiqueta text-dorado">Paso 6</p>
+              <div className="mt-2 flex items-center gap-3">
+                <BookOpen className="size-5 text-dorado" aria-hidden="true" />
+                <h2 className="font-display text-2xl">Nuestra historia</h2>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm text-[var(--texto-suave)]">
+                Cuenta qué hace especial a la barbería. La portada actual se usará como imagen de
+                esta sección.
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-3 border border-[var(--borde)] px-4 py-3 text-sm">
+              <input
+                type="checkbox"
+                name="mostrar_nosotros"
+                checked={mostrarNosotros}
+                onChange={(event) => setMostrarNosotros(event.target.checked)}
+                className="size-4 accent-[var(--dorado)]"
+              />
+              Mostrar en el sitio
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo etiqueta="Título" htmlFor="nosotros_titulo" className="sm:col-span-2">
+              <Entrada
+                id="nosotros_titulo"
+                name="nosotros_titulo"
+                value={nosotrosTitulo}
+                onChange={(event) => setNosotrosTitulo(event.target.value)}
+                placeholder="Más que una barbería"
+                maxLength={120}
+                required={mostrarNosotros}
+              />
+            </Campo>
+
+            <Campo etiqueta="Historia" htmlFor="nosotros_historia" className="sm:col-span-2">
+              <AreaTexto
+                id="nosotros_historia"
+                name="nosotros_historia"
+                value={nosotrosHistoria}
+                onChange={(event) => setNosotrosHistoria(event.target.value)}
+                placeholder="Cuenta cómo nació la barbería, qué valores la representan y qué experiencia quieres ofrecer..."
+                maxLength={2000}
+                rows={7}
+                required={mostrarNosotros}
+              />
+              <div className="mt-1 flex justify-between text-xs text-[var(--texto-tenue)]">
+                <span>Se respetarán los saltos de línea.</span>
+                <span>{nosotrosHistoria.length}/2000</span>
+              </div>
+            </Campo>
+
+            <Campo
+              etiqueta="Frase destacada (opcional)"
+              htmlFor="nosotros_frase"
+              className="sm:col-span-2"
+            >
+              <Entrada
+                id="nosotros_frase"
+                name="nosotros_frase"
+                value={nosotrosFrase}
+                onChange={(event) => setNosotrosFrase(event.target.value)}
+                placeholder="Aquí cada corte cuenta una historia."
+                maxLength={180}
+              />
+            </Campo>
+          </div>
+
+          <div className="mt-5 grid overflow-hidden border border-dorado/30 lg:grid-cols-[0.8fr_1.2fr]">
+            <div
+              className="min-h-52 bg-cover bg-center"
+              style={{
+                backgroundColor: colores.colorFondo,
+                backgroundImage: portadaUrl
+                  ? `linear-gradient(135deg, ${colores.colorFondo}22, ${colores.colorFondo}bb), url("${portadaUrl}")`
+                  : `linear-gradient(135deg, ${colores.colorSuperficie}, ${colores.colorFondo})`,
+              }}
+              aria-hidden="true"
+            />
+            <div
+              className="p-6"
+              style={{
+                background: colores.colorFondo,
+                color: colores.colorTexto,
+              }}
+            >
+              <p
+                className="text-[10px] font-semibold uppercase tracking-[0.25em]"
+                style={{ color: colores.colorPrimario }}
+              >
+                Nosotros
+              </p>
+              <h3 className="mt-3 text-3xl" style={{ fontFamily: 'var(--font-display)' }}>
+                {nosotrosTitulo || 'Más que una barbería'}
+              </h3>
+              <p className="mt-4 line-clamp-4 whitespace-pre-line text-sm leading-6 opacity-70">
+                {nosotrosHistoria ||
+                  'Tu historia aparecerá aquí con un diseño editorial que combina con la identidad de la barbería.'}
+              </p>
+              {nosotrosFrase ? (
+                <p
+                  className="mt-5 border-l-2 pl-4 text-sm italic"
+                  style={{ borderColor: colores.colorPrimario }}
+                >
+                  “{nosotrosFrase}”
+                </p>
+              ) : null}
+            </div>
           </div>
         </section>
 
