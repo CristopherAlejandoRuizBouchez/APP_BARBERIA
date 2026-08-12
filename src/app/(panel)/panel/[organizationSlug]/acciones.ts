@@ -364,7 +364,22 @@ export async function guardarApariencia(slug: string, formData: FormData) {
       !contrasteSuficiente(tema.colorFondo, tema.colorTexto)
     )
       throw new Error('DATOS_INVALIDOS');
-    const { error } = await supabase
+
+    const ubicacion = z
+      .object({
+        ciudad: z.string().trim().min(2).max(100),
+        calle: z.string().trim().min(2).max(180),
+        numero: z.string().trim().max(40),
+        colonia: z.string().trim().max(120),
+      })
+      .parse({
+        ciudad: valor(formData, 'ciudad'),
+        calle: valor(formData, 'calle'),
+        numero: valor(formData, 'numero'),
+        colonia: valor(formData, 'colonia'),
+      });
+
+    const { error: temaError } = await supabase
       .from('organization_themes')
       .update({
         plantilla: tema.plantilla,
@@ -385,8 +400,35 @@ export async function guardarApariencia(slug: string, formData: FormData) {
         actualizado_por: user.id,
       })
       .eq('organization_id', organizacion.id);
-    if (error) throw error;
+
+    if (temaError) throw temaError;
+
+    const { data: ubicacionActual, error: consultaUbicacionError } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('organization_id', organizacion.id)
+      .eq('activa', true)
+      .order('es_principal', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (consultaUbicacionError || !ubicacionActual) throw new Error('DATOS_INVALIDOS');
+
+    const { error: ubicacionError } = await supabase
+      .from('locations')
+      .update({
+        ciudad: ubicacion.ciudad,
+        calle: ubicacion.calle,
+        numero: ubicacion.numero || null,
+        colonia: ubicacion.colonia || null,
+      })
+      .eq('organization_id', organizacion.id)
+      .eq('id', ubicacionActual.id);
+
+    if (ubicacionError) throw ubicacionError;
+
     revalidatePath(`/b/${slug}`, 'layout');
+    revalidatePath(`/b/${slug}/contacto`);
   } catch (error) {
     mensajeError = comoErrorDominio(error).message;
   }

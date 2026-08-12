@@ -52,6 +52,17 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
   const base = `/b/${slug}`;
   const listaServicios = servicios.data ?? [];
   const listaBarberos = barberos.data ?? [];
+  const ubicacion = sucursales[0] ?? null;
+  const direccionCompleta = ubicacion
+    ? [ubicacion.direccionCorta, ubicacion.ciudad].filter(Boolean).join(', ')
+    : '';
+  const consultaMapa = encodeURIComponent(direccionCompleta);
+  const urlMapa = direccionCompleta
+    ? `https://www.google.com/maps?q=${consultaMapa}&output=embed`
+    : '';
+  const urlComoLlegar = direccionCompleta
+    ? `https://www.google.com/maps/search/?api=1&query=${consultaMapa}`
+    : '';
 
   const contenedor = 'mx-auto w-full px-5';
   const anchoEstilo = { maxWidth: 'var(--tema-ancho)' } as React.CSSProperties;
@@ -302,7 +313,10 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
       {listaBarberos.length > 0 ? (
         <section
           className="border-y"
-          style={{ background: 'var(--tema-superficie)', borderColor: 'var(--tema-borde)' }}
+          style={{
+            background: 'var(--tema-superficie)',
+            borderColor: 'var(--tema-borde)',
+          }}
           aria-labelledby="titulo-equipo"
         >
           <div className={contenedor} style={{ ...anchoEstilo, paddingBlock: 'var(--tema-ritmo)' }}>
@@ -352,8 +366,8 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
         </section>
       ) : null}
 
-      {/* ── SUCURSALES ──────────────────────────────────────────────────── */}
-      {sucursales.length > 1 ? (
+      {/* ── UBICACIÓN ───────────────────────────────────────────────────── */}
+      {ubicacion && direccionCompleta ? (
         <section
           className={contenedor}
           style={{ ...anchoEstilo, paddingBlock: 'var(--tema-ritmo)' }}
@@ -361,36 +375,43 @@ export default async function PortadaBarberia({ params }: { params: Promise<{ sl
           <p className="etiqueta" style={{ color: 'var(--tema-primario)' }}>
             Dónde estamos
           </p>
-          <h2 className="mt-3 font-[family-name:var(--tema-fuente-titulos)] text-4xl">
-            Sucursales
-          </h2>
+          <h2 className="mt-3 font-[family-name:var(--tema-fuente-titulos)] text-4xl">Visítanos</h2>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {sucursales.map((s) => (
-              <article
-                key={s.id}
-                className="border p-6"
-                style={{
-                  borderColor: 'var(--tema-borde)',
-                  background: 'var(--tema-superficie)',
-                  borderRadius: 'var(--tema-radio)',
-                }}
-              >
-                <MapPin
-                  className="size-5"
-                  style={{ color: 'var(--tema-primario)' }}
-                  aria-hidden="true"
-                />
-                <h3 className="mt-4 font-[family-name:var(--tema-fuente-titulos)] text-xl">
-                  {s.nombre}
-                </h3>
-                <p className="mt-2 text-sm" style={{ color: 'var(--tema-texto-suave)' }}>
-                  {s.direccionCorta}
-                  {s.direccionCorta ? ', ' : ''}
-                  {s.ciudad}
-                </p>
-              </article>
-            ))}
+          <div
+            className="mt-10 grid overflow-hidden border lg:grid-cols-[0.75fr_1.25fr]"
+            style={{
+              borderColor: 'var(--tema-borde)',
+              background: 'var(--tema-superficie)',
+              borderRadius: 'var(--tema-radio)',
+            }}
+          >
+            <div className="flex flex-col justify-center p-7 sm:p-9">
+              <MapPin
+                className="size-6"
+                style={{ color: 'var(--tema-primario)' }}
+                aria-hidden="true"
+              />
+              <h3 className="mt-5 font-[family-name:var(--tema-fuente-titulos)] text-2xl">
+                Ubicación
+              </h3>
+              <p className="mt-3 leading-relaxed" style={{ color: 'var(--tema-texto-suave)' }}>
+                {direccionCompleta}
+              </p>
+              <Boton comoHijo variante="acento" className="mt-6 w-fit">
+                <a href={urlComoLlegar} target="_blank" rel="noreferrer">
+                  Cómo llegar <ArrowRight className="size-4" />
+                </a>
+              </Boton>
+            </div>
+
+            <iframe
+              title={`Mapa de ${org.nombreComercial}`}
+              src={urlMapa}
+              className="min-h-80 w-full border-0"
+              loading="lazy"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+            />
           </div>
         </section>
       ) : null}

@@ -1010,11 +1010,17 @@ export default async function ModuloPanel({
   }
 
   if (modulo === 'apariencia') {
-    const { data: tema } = await supabase
-      .from('organization_themes')
-      .select('*')
-      .eq('organization_id', orgId)
-      .maybeSingle();
+    const [{ data: tema }, { data: ubicacion }] = await Promise.all([
+      supabase.from('organization_themes').select('*').eq('organization_id', orgId).maybeSingle(),
+      supabase
+        .from('locations')
+        .select('ciudad, calle, numero, colonia')
+        .eq('organization_id', orgId)
+        .eq('activa', true)
+        .order('es_principal', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
     return (
       <div className="space-y-5">
         <Encabezado
@@ -1027,6 +1033,12 @@ export default async function ModuloPanel({
           organizationId={orgId}
           nombreComercial={organizacion.nombre_comercial}
           sitioPublico={basePublica}
+          ubicacionInicial={{
+            ciudad: ubicacion?.ciudad ?? '',
+            calle: ubicacion?.calle ?? '',
+            numero: ubicacion?.numero ?? '',
+            colonia: ubicacion?.colonia ?? '',
+          }}
           action={guardarAparienciaOrg}
           temaInicial={{
             plantilla: tema?.plantilla ?? 'urban_premium',

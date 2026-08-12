@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { Mail, MapPin, MessageCircle } from 'lucide-react';
+import { Mail, MapPin, MessageCircle, Navigation } from 'lucide-react';
 import { Boton } from '@/components/ui/boton';
 import { organizacionPorSlug, sucursalesDeOrganizacion } from '@/lib/tenant/resolver';
 
@@ -10,43 +10,62 @@ export default async function Contacto({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const org = await organizacionPorSlug(slug);
   if (!org) notFound();
+
   const ubicacion = (await sucursalesDeOrganizacion(org.id))[0];
-  const wa = org.telefonoWhatsapp
-    ? `https://wa.me/${org.telefonoWhatsapp.replace(/\D/g, '')}`
-    : null;
+  const direccionCompleta = ubicacion
+    ? [ubicacion.direccionCorta, ubicacion.ciudad].filter(Boolean).join(', ')
+    : '';
+  const consultaMapa = encodeURIComponent(direccionCompleta);
+  const urlMapa = direccionCompleta
+    ? `https://www.google.com/maps?q=${consultaMapa}&output=embed`
+    : '';
+  const urlComoLlegar = direccionCompleta
+    ? `https://www.google.com/maps/search/?api=1&query=${consultaMapa}`
+    : '';
+  const telefonoWhatsapp = ubicacion?.telefonoWhatsapp || org.telefonoWhatsapp;
+  const wa = telefonoWhatsapp ? `https://wa.me/${telefonoWhatsapp.replace(/\D/g, '')}` : null;
+
   return (
     <div className="mx-auto w-full px-5 py-16" style={{ maxWidth: 'var(--tema-ancho)' }}>
       <p className="etiqueta" style={{ color: 'var(--tema-primario)' }}>
         Contacto
       </p>
       <h1 className="mt-3 font-[family-name:var(--tema-fuente-titulos)] text-5xl">Estamos cerca</h1>
-      <div className="mt-10 grid gap-5 md:grid-cols-2">
-        {ubicacion ? (
-          <article
-            className="border p-6"
-            style={{ borderColor: 'var(--tema-borde)', background: 'var(--tema-superficie)' }}
-          >
+      {ubicacion && direccionCompleta ? (
+        <div
+          className="mt-10 grid overflow-hidden border md:grid-cols-[0.8fr_1.2fr]"
+          style={{
+            borderColor: 'var(--tema-borde)',
+            background: 'var(--tema-superficie)',
+            borderRadius: 'var(--tema-radio)',
+          }}
+        >
+          <article className="flex flex-col justify-center p-6 sm:p-8">
             <MapPin className="size-5" style={{ color: 'var(--tema-primario)' }} />
             <h2 className="mt-4 font-[family-name:var(--tema-fuente-titulos)] text-3xl">
               Ubicación
             </h2>
-            <p className="mt-2" style={{ color: 'var(--tema-texto-suave)' }}>
-              {ubicacion.direccionCorta}, {ubicacion.ciudad}
+            <p className="mt-3 leading-relaxed" style={{ color: 'var(--tema-texto-suave)' }}>
+              {direccionCompleta}
             </p>
-            {ubicacion.telefonoWhatsapp ? (
-              <Boton comoHijo variante="contorno" className="mt-5">
-                <a
-                  href={`https://wa.me/${ubicacion.telefonoWhatsapp.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <MessageCircle className="size-4" /> WhatsApp
-                </a>
-              </Boton>
-            ) : null}
+            <Boton comoHijo variante="acento" className="mt-6 w-fit">
+              <a href={urlComoLlegar} target="_blank" rel="noreferrer">
+                <Navigation className="size-4" /> Cómo llegar
+              </a>
+            </Boton>
           </article>
-        ) : null}
-      </div>
+
+          <iframe
+            title={`Mapa de ${org.nombreComercial}`}
+            src={urlMapa}
+            className="min-h-80 w-full border-0"
+            loading="lazy"
+            allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+      ) : null}
+
       <div className="mt-8 flex flex-wrap gap-3">
         {wa ? (
           <Boton comoHijo variante="acento">

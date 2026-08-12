@@ -1,7 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { Check, ExternalLink, ImagePlus, Loader2, RotateCcw, Upload, X } from 'lucide-react';
+import {
+  Check,
+  ExternalLink,
+  ImagePlus,
+  Loader2,
+  MapPin,
+  RotateCcw,
+  Upload,
+  X,
+} from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 import { Boton } from '@/components/ui/boton';
 import { AreaTexto, Campo, Entrada } from '@/components/ui/campo';
@@ -35,16 +44,39 @@ export type TemaInicialEditor = {
   textura: Textura;
 };
 
+type UbicacionInicialEditor = {
+  ciudad: string;
+  calle: string;
+  numero: string;
+  colonia: string;
+};
+
 type Colores = Pick<
   TemaInicialEditor,
   'colorPrimario' | 'colorSecundario' | 'colorFondo' | 'colorSuperficie' | 'colorTexto'
 >;
 
-const CAMPOS_COLOR: Array<{ clave: keyof Colores; nombre: string; etiqueta: string }> = [
-  { clave: 'colorPrimario', nombre: 'color_primario', etiqueta: 'Acento principal' },
-  { clave: 'colorSecundario', nombre: 'color_secundario', etiqueta: 'Acento secundario' },
+const CAMPOS_COLOR: Array<{
+  clave: keyof Colores;
+  nombre: string;
+  etiqueta: string;
+}> = [
+  {
+    clave: 'colorPrimario',
+    nombre: 'color_primario',
+    etiqueta: 'Acento principal',
+  },
+  {
+    clave: 'colorSecundario',
+    nombre: 'color_secundario',
+    etiqueta: 'Acento secundario',
+  },
   { clave: 'colorFondo', nombre: 'color_fondo', etiqueta: 'Fondo general' },
-  { clave: 'colorSuperficie', nombre: 'color_superficie', etiqueta: 'Tarjetas' },
+  {
+    clave: 'colorSuperficie',
+    nombre: 'color_superficie',
+    etiqueta: 'Tarjetas',
+  },
   { clave: 'colorTexto', nombre: 'color_texto', etiqueta: 'Texto' },
 ];
 
@@ -73,12 +105,14 @@ export function EditorApariencia({
   nombreComercial,
   sitioPublico,
   temaInicial,
+  ubicacionInicial,
   action,
 }: {
   organizationId: string;
   nombreComercial: string;
   sitioPublico: string;
   temaInicial: TemaInicialEditor;
+  ubicacionInicial: UbicacionInicialEditor;
   action: (formData: FormData) => void | Promise<void>;
 }) {
   const [plantilla, setPlantilla] = React.useState<Plantilla>(temaInicial.plantilla);
@@ -99,6 +133,10 @@ export function EditorApariencia({
   const [textura, setTextura] = React.useState<Textura>(temaInicial.textura);
   const [subiendo, setSubiendo] = React.useState<'logo' | 'portada' | null>(null);
   const [errorImagen, setErrorImagen] = React.useState<string | null>(null);
+  const [ciudad, setCiudad] = React.useState(ubicacionInicial.ciudad);
+  const [calle, setCalle] = React.useState(ubicacionInicial.calle);
+  const [numero, setNumero] = React.useState(ubicacionInicial.numero);
+  const [colonia, setColonia] = React.useState(ubicacionInicial.colonia);
 
   const definicion = DEFINICIONES[plantilla];
   const contrasteActual = contraste(colores.colorFondo, colores.colorTexto);
@@ -427,6 +465,78 @@ export function EditorApariencia({
           </div>
         </section>
 
+        <section className="border border-[var(--borde)] bg-[var(--superficie)] p-5">
+          <div className="mb-5">
+            <p className="etiqueta text-dorado">Paso 5</p>
+            <div className="mt-2 flex items-center gap-3">
+              <MapPin className="size-5 text-dorado" aria-hidden="true" />
+              <h2 className="font-display text-2xl">Ubicación</h2>
+            </div>
+            <p className="mt-2 text-sm text-[var(--texto-suave)]">
+              Esta dirección aparecerá en la página pública con un mapa y un botón para llegar.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo etiqueta="Ciudad" htmlFor="ciudad">
+              <Entrada
+                id="ciudad"
+                name="ciudad"
+                value={ciudad}
+                onChange={(event) => setCiudad(event.target.value)}
+                placeholder="Xalapa, Veracruz"
+                maxLength={100}
+                required
+              />
+            </Campo>
+
+            <Campo etiqueta="Colonia" htmlFor="colonia">
+              <Entrada
+                id="colonia"
+                name="colonia"
+                value={colonia}
+                onChange={(event) => setColonia(event.target.value)}
+                placeholder="Colonia Centro"
+                maxLength={120}
+              />
+            </Campo>
+
+            <Campo etiqueta="Calle" htmlFor="calle">
+              <Entrada
+                id="calle"
+                name="calle"
+                value={calle}
+                onChange={(event) => setCalle(event.target.value)}
+                placeholder="Avenida, calle o carretera"
+                maxLength={180}
+                required
+              />
+            </Campo>
+
+            <Campo etiqueta="Número" htmlFor="numero">
+              <Entrada
+                id="numero"
+                name="numero"
+                value={numero}
+                onChange={(event) => setNumero(event.target.value)}
+                placeholder="123, interior 2"
+                maxLength={40}
+              />
+            </Campo>
+          </div>
+
+          <div className="mt-4 border border-dorado/30 bg-dorado/5 p-4 text-sm">
+            <strong className="block text-dorado">Así aparecerá</strong>
+            <p className="mt-1 text-[var(--texto-suave)]">
+              {[calle, numero, colonia, ciudad].filter(Boolean).join(', ') ||
+                'Agrega la dirección de la barbería.'}
+            </p>
+            <p className="mt-2 text-xs text-[var(--texto-tenue)]">
+              Google Maps localizará la barbería usando esta dirección. No requiere una API de pago.
+            </p>
+          </div>
+        </section>
+
         <div className="flex flex-wrap items-center gap-3 border-t border-[var(--borde)] pt-5">
           <BotonPublicar subiendo={Boolean(subiendo)} />
           <Boton comoHijo variante="contorno" tamano="lg">
@@ -515,7 +625,10 @@ export function EditorApariencia({
           </div>
           <div
             className="grid grid-cols-2 gap-3 p-4"
-            style={{ background: 'var(--preview-fondo)', color: 'var(--preview-texto)' }}
+            style={{
+              background: 'var(--preview-fondo)',
+              color: 'var(--preview-texto)',
+            }}
           >
             {['Corte clásico', 'Barba premium'].map((servicio, indice) => (
               <div
