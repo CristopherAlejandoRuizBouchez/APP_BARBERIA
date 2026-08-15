@@ -84,6 +84,8 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
       if (error) throw error;
     } else if (modulo === 'productos') {
       const nombre = texto.parse(valor(formData, 'nombre'));
+      const codigo = texto.parse(valor(formData, 'sku')).toUpperCase();
+      const slugProducto = slugDe(nombre);
       const imagenUrl = imagenDeOrganizacion(valor(formData, 'imagen_url'), organizacion.id);
       const existenciasIniciales = z.coerce
         .number()
@@ -91,60 +93,122 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
         .min(0)
         .max(1_000_000)
         .parse(valor(formData, 'existencias_iniciales'));
-      const ubicacion =
-        existenciasIniciales > 0
-          ? await supabase
-              .from('locations')
-              .select('id')
-              .eq('organization_id', organizacion.id)
-              .eq('activa', true)
-              .order('es_principal', { ascending: false })
-              .limit(1)
-              .maybeSingle()
-          : { data: null, error: null };
-      if (ubicacion.error) throw ubicacion.error;
-      if (existenciasIniciales > 0 && !ubicacion.data) throw new Error('DATOS_INVALIDOS');
 
-      const { data: producto, error: productoError } = await supabase
-        .from('products')
-        .insert({
-          organization_id: organizacion.id,
-          sku: texto.parse(valor(formData, 'sku')).toUpperCase(),
-          slug: slugDe(nombre),
-          nombre,
-          marca: valor(formData, 'marca') || null,
-          descripcion: valor(formData, 'descripcion') || null,
-          imagen_url: imagenUrl,
-          precio_venta_centavos: centavosDe(valor(formData, 'precio')),
-          costo_centavos: centavosDe(valor(formData, 'costo') || '0'),
-          visible_en_tienda: formData.get('visible') === 'on',
-          destacado: formData.get('destacado') === 'on',
-        })
-        .select('id')
-        .single();
+      const [porCodigo, porNombre, ubicacion] = await Promise.all([
+        supabase
+          .from('products')
+          .select('id, activo, imagen_url')
+          .eq('organization_id', organizacion.id)
+          .eq('sku', codigo)
+          .maybeSingle(),
+        supabase
+          .from('products')
+          .select('id, activo, imagen_url')
+          .eq('organization_id', organizacion.id)
+          .eq('slug', slugProducto)
+          .maybeSingle(),
+        supabase
+          .from('locations')
+          .select('id')
+          .eq('organization_id', organizacion.id)
+          .eq('activa', true)
+          .order('es_principal', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (porCodigo.error) throw porCodigo.error;
+      if (porNombre.error) throw porNombre.error;
+      if (ubicacion.error) throw ubicacion.error;
+      if (!ubicacion.data) throw new Error('DATOS_INVALIDOS');
+
+      const coincidencias = [porCodigo.data, porNombre.data].filter(
+        (producto, indice, lista): producto is NonNullable<typeof producto> =>
+          Boolean(producto) && lista.findIndex((item) => item?.id === producto?.id) === indice
+      );
+      if (coincidencias.length > 1 || coincidencias.some((producto) => producto.activo)) {
+        throw new Error('PRODUCTO_DUPLICADO');
+      }
+
+      const existente = coincidencias[0];
+      const datosProducto = {
+        sku: codigo,
+        slug: slugProducto,
+        nombre,
+        marca: valor(formData, 'marca') || null,
+        descripcion: valor(formData, 'descripcion') || null,
+        imagen_url: imagenUrl ?? existente?.imagen_url ?? null,
+        precio_venta_centavos: centavosDe(valor(formData, 'precio')),
+        costo_centavos: centavosDe(valor(formData, 'costo') || '0'),
+        visible_en_tienda: formData.get('visible') === 'on',
+        destacado: formData.get('destacado') === 'on',
+        activo: true,
+        actualizado_en: new Date().toISOString(),
+      };
+
+      const resultadoProducto = existente
+        ? await supabase
+            .from('products')
+            .update(datosProducto)
+            .eq('organization_id', organizacion.id)
+            .eq('id', existente.id)
+            .select('id')
+            .single()
+        : await supabase
+            .from('products')
+            .insert({ organization_id: organizacion.id, ...datosProducto })
+            .select('id')
+            .single();
+      const { data: producto, error: productoError } = resultadoProducto;
       if (productoError) {
         if (productoError.code === '23505') throw new Error('PRODUCTO_DUPLICADO');
         throw productoError;
       }
 
-      if (existenciasIniciales > 0) {
-        const { error: movimientoError } = await supabase.from('inventory_movements').insert({
-          organization_id: organizacion.id,
-          location_id: ubicacion.data!.id,
-          producto_id: producto.id,
-          tipo: 'inventario_inicial',
-          cantidad: existenciasIniciales,
-          stock_anterior: 0,
-          stock_nuevo: 0,
-          motivo: 'Existencias iniciales al crear el producto',
-          usuario_id: user.id,
-        });
-        if (movimientoError) {
+      const deshacerActivacion = async () => {
+        if (existente) {
+          await supabase
+            .from('products')
+            .update({ activo: false, visible_en_tienda: false })
+            .eq('organization_id', organizacion.id)
+            .eq('id', producto.id);
+        } else {
           await supabase
             .from('products')
             .delete()
             .eq('organization_id', organizacion.id)
             .eq('id', producto.id);
+        }
+      };
+
+      const { data: stock, error: stockError } = await supabase
+        .from('product_stock')
+        .select('stock_actual')
+        .eq('organization_id', organizacion.id)
+        .eq('location_id', ubicacion.data.id)
+        .eq('producto_id', producto.id)
+        .maybeSingle();
+      if (stockError) {
+        await deshacerActivacion();
+        throw stockError;
+      }
+
+      const diferencia = existenciasIniciales - (stock?.stock_actual ?? 0);
+      if (diferencia !== 0) {
+        const { error: movimientoError } = await supabase.from('inventory_movements').insert({
+          organization_id: organizacion.id,
+          location_id: ubicacion.data.id,
+          producto_id: producto.id,
+          tipo: stock ? 'ajuste' : 'inventario_inicial',
+          cantidad: diferencia,
+          stock_anterior: 0,
+          stock_nuevo: 0,
+          motivo: existente
+            ? 'Existencias al recuperar el producto'
+            : 'Existencias iniciales al crear el producto',
+          usuario_id: user.id,
+        });
+        if (movimientoError) {
+          await deshacerActivacion();
           throw movimientoError;
         }
       }
