@@ -24,16 +24,16 @@ export default async function LayoutOrganizacion({
   const base = `/panel/${organizationSlug}`;
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-[var(--fondo)] text-[var(--texto)]">
+    <div className="flex min-h-dvh bg-[var(--fondo)] text-[var(--texto)]">
       <BarraLateral
         rol={rol}
         nombreNegocio={organizacion.nombre_comercial}
         basePath={base}
         suspendida={!contexto.organizacionOperativa}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <BarraSuperior rol={rol} nombreUsuario={user.email ?? 'Usuario'} />
-        <div className="flex items-center gap-4 overflow-x-auto border-b border-[var(--borde)] bg-[var(--superficie)] px-4 py-2 text-xs md:hidden">
+        <div className="sticky top-14 z-30 flex items-center gap-4 overflow-x-auto border-b border-[var(--borde)] bg-[var(--superficie)] px-4 py-2 text-xs md:hidden">
           {!contexto.organizacionOperativa ? (
             <Link href={`${base}/pagos`}>Plan y pagos</Link>
           ) : rol === 'barbero' ? (
@@ -59,7 +59,7 @@ export default async function LayoutOrganizacion({
             operaciones están limitadas.
           </div>
         ) : null}
-        <main id="contenido" className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main id="contenido" className="flex-1 p-4 md:p-6">
           {children}
         </main>
       </div>

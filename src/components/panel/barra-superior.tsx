@@ -20,7 +20,7 @@ export function BarraSuperior({ rol, nombreUsuario }: { rol: RolUsuario; nombreU
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--borde)] bg-[var(--superficie)] px-4">
+    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b border-[var(--borde)] bg-[var(--superficie)] px-4">
       <p className="hidden truncate text-xs capitalize text-[var(--texto-tenue)] sm:block">{hoy}</p>
 
       <div className="ml-auto flex items-center gap-1">

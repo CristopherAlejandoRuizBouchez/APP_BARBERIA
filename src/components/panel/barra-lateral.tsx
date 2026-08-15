@@ -3,7 +3,14 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, CreditCard, LogOut, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react';
+import {
+  ChevronDown,
+  CreditCard,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Wrench,
+} from 'lucide-react';
 import { navegacionPara, ETIQUETA_ROL, type RolUsuario } from './navegacion';
 import { cn } from '@/lib/utils';
 import { cerrarSesion } from '@/app/(auth)/acciones';
@@ -58,7 +65,7 @@ export function BarraLateral({
     <aside
       data-colapsada={colapsada}
       className={cn(
-        'hidden shrink-0 flex-col border-r border-[var(--borde)] bg-[var(--superficie)] transition-[width] duration-200 md:flex',
+        'sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-[var(--borde)] bg-[var(--superficie)] transition-[width] duration-200 md:flex',
         colapsada ? 'w-lateral-min' : 'w-lateral'
       )}
     >
