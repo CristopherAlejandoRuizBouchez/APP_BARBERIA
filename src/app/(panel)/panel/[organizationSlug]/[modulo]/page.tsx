@@ -14,8 +14,9 @@ import { formatearMXN } from '@/lib/dinero';
 import { requerirOrganizacion } from '@/lib/auth/guardas';
 import { PuntoVenta } from '@/components/panel/punto-venta';
 import { EditorApariencia } from '@/components/panel/editor-apariencia';
-import { FormularioAccesoRecepcion } from '@/components/panel/formulario-acceso-recepcion';
+import { EditorHorarioBarbero } from '@/components/panel/editor-horario-barbero';
 import { BotonEliminarBarbero } from '@/components/panel/boton-eliminar-barbero';
+import { FormularioAccesoRecepcion } from '@/components/panel/formulario-acceso-recepcion';
 import {
   cambiarAccesoRecepcion,
   cambiarDisponibilidadBarbero,
@@ -25,6 +26,7 @@ import {
   guardarApariencia,
   guardarCatalogo,
   guardarConfiguracion,
+  guardarHorarioBarbero,
   guardarOperacion,
   actualizarServicio,
   crearAccesoRecepcion,
@@ -196,6 +198,7 @@ export default async function ModuloPanel({
   const cambiarDisponibilidadBarberoOrg = cambiarDisponibilidadBarbero.bind(null, organizationSlug);
   const cambiarEstadoOrg = cambiarEstado.bind(null, organizationSlug);
   const guardarAparienciaOrg = guardarApariencia.bind(null, organizationSlug);
+  const guardarHorarioBarberoOrg = guardarHorarioBarbero.bind(null, organizationSlug);
   const crearAccesoRecepcionOrg = crearAccesoRecepcion.bind(null, organizationSlug);
   const cambiarAccesoRecepcionOrg = cambiarAccesoRecepcion.bind(null, organizationSlug);
   const gestionarCajaOrg = gestionarCaja.bind(null, organizationSlug);
@@ -578,12 +581,29 @@ export default async function ModuloPanel({
   }
 
   if (modulo === 'barberos') {
-    const { data } = await supabase
-      .from('barbers')
-      .select('*')
-      .eq('organization_id', orgId)
-      .order('orden')
-      .order('nombre');
+    const [barberos, horarios, ubicaciones] = await Promise.all([
+      supabase
+        .from('barbers')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('orden')
+        .order('nombre'),
+      supabase
+        .from('barber_schedules')
+        .select('barbero_id, location_id, dia_semana, hora_inicio, hora_fin, activo')
+        .eq('organization_id', orgId)
+        .order('dia_semana')
+        .order('hora_inicio'),
+      supabase
+        .from('locations')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('activa', true)
+        .order('es_principal', { ascending: false })
+        .limit(1),
+    ]);
+    const data = barberos.data;
+    const ubicacionId = ubicaciones.data?.[0]?.id;
     return (
       <div className="space-y-5">
         <Encabezado
@@ -617,33 +637,56 @@ export default async function ModuloPanel({
             <AreaTexto id="bio" name="bio" />
           </Campo>
         </FormularioBase>
-        <Tarjeta>
-          {data?.length ? (
-            <Tabla encabezados={['Nombre', 'Especialidades', 'Comisión', 'Estado', 'Acciones']}>
-              {data.map((b) => (
-                <tr key={b.id}>
-                  <td className="px-4 py-3">
-                    {b.nombre}
-                    {b.apodo ? ` “${b.apodo}”` : ''}
-                  </td>
-                  <td className="px-4 py-3">{(b.especialidades ?? []).join(', ') || '—'}</td>
-                  <td className="cifras px-4 py-3">{b.comision_servicio_valor}%</td>
-                  <td className="px-4 py-3">{b.activo ? 'Activo' : 'Inactivo'}</td>
-                  <td className="px-4 py-3">
+        {data?.length ? (
+          <div className="grid gap-5">
+            {data.map((b) => (
+              <Tarjeta key={b.id}>
+                <TarjetaCabecera className="border-b border-[var(--borde)] sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <TarjetaTitulo>
+                      {b.nombre}
+                      {b.apodo ? ` “${b.apodo}”` : ''}
+                    </TarjetaTitulo>
+                    <p className="mt-1 text-sm text-[var(--texto-suave)]">
+                      {(b.especialidades ?? []).join(', ') || 'Sin especialidades registradas'} ·{' '}
+                      Comisión {b.comision_servicio_valor}%
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
+                        b.activo
+                          ? 'border-exito/40 bg-exito-suave text-exito'
+                          : 'border-[var(--borde)] text-[var(--texto-tenue)]'
+                      }`}
+                    >
+                      {b.activo ? 'Activo' : 'Inactivo'}
+                    </span>
                     <BotonEliminarBarbero
                       action={cambiarDisponibilidadBarberoOrg}
                       id={b.id}
                       nombre={b.nombre}
                       activo={b.activo}
                     />
-                  </td>
-                </tr>
-              ))}
-            </Tabla>
-          ) : (
+                  </div>
+                </TarjetaCabecera>
+                <EditorHorarioBarbero
+                  barberoId={b.id}
+                  horarios={(horarios.data ?? []).filter(
+                    (horario) =>
+                      horario.barbero_id === b.id &&
+                      (!ubicacionId || horario.location_id === ubicacionId)
+                  )}
+                  action={guardarHorarioBarberoOrg}
+                />
+              </Tarjeta>
+            ))}
+          </div>
+        ) : (
+          <Tarjeta>
             <CeldaVacia />
-          )}
-        </Tarjeta>
+          </Tarjeta>
+        )}
       </div>
     );
   }
@@ -1057,6 +1100,10 @@ export default async function ModuloPanel({
             portadaUrl: tema?.portada_url ?? '',
             eslogan: tema?.eslogan ?? organizacion.nombre_comercial,
             descripcion: tema?.descripcion ?? '',
+            nosotrosTitulo: tema?.nosotros_titulo ?? 'Más que una barbería',
+            nosotrosHistoria: tema?.nosotros_historia ?? '',
+            nosotrosFrase: tema?.nosotros_frase ?? '',
+            mostrarNosotros: tema?.mostrar_nosotros ?? false,
             colorPrimario: tema?.color_primario ?? '#B88942',
             colorSecundario: tema?.color_secundario ?? '#5B1E2D',
             colorFondo: tema?.color_fondo ?? '#0B0B0D',

@@ -18,6 +18,12 @@ type DiaEditable = {
   fin: string;
 };
 
+const HORARIO_POR_DEFECTO: DiaEditable = {
+  activo: false,
+  inicio: '09:00',
+  fin: '19:00',
+};
+
 const DIAS = [
   { valor: 1, nombre: 'Lunes' },
   { valor: 2, nombre: 'Martes' },
@@ -67,10 +73,13 @@ export function EditorHorarioBarbero({
   });
 
   function actualizarDia(dia: number, cambios: Partial<DiaEditable>) {
-    setDias((actuales) => ({
-      ...actuales,
-      [dia]: { ...actuales[dia], ...cambios },
-    }));
+    setDias((actuales) => {
+      const horarioActual = actuales[dia] ?? HORARIO_POR_DEFECTO;
+      return {
+        ...actuales,
+        [dia]: { ...horarioActual, ...cambios },
+      };
+    });
   }
 
   return (
@@ -89,7 +98,7 @@ export function EditorHorarioBarbero({
 
       <div className="grid gap-2">
         {DIAS.map((dia) => {
-          const horario = dias[dia.valor];
+          const horario = dias[dia.valor] ?? HORARIO_POR_DEFECTO;
           return (
             <div
               key={dia.valor}

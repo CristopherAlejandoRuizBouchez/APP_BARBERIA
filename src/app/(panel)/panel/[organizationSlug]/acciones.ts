@@ -13,6 +13,7 @@ import { contrasteSuficiente, validarTema } from '@/lib/temas/validacion';
 
 const texto = z.string().trim().min(1).max(180);
 const uuid = z.string().uuid();
+const horaHorario = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 function valor(formData: FormData, clave: string): string {
   return String(formData.get(clave) ?? '').trim();
@@ -361,6 +362,74 @@ export async function cambiarEstado(slug: string, formData: FormData) {
   terminar(slug, modulo, mensajeError);
 }
 
+export async function guardarHorarioBarbero(slug: string, formData: FormData) {
+  let mensajeError: string | undefined;
+
+  try {
+    const { supabase, organizacion } = await contextoConPermiso(slug, 'barberos.gestionar');
+    const barberoId = uuid.parse(valor(formData, 'barbero_id'));
+
+    const [{ data: barbero, error: barberoError }, { data: ubicacion, error: ubicacionError }] =
+      await Promise.all([
+        supabase
+          .from('barbers')
+          .select('id')
+          .eq('organization_id', organizacion.id)
+          .eq('id', barberoId)
+          .maybeSingle(),
+        supabase
+          .from('locations')
+          .select('id')
+          .eq('organization_id', organizacion.id)
+          .eq('activa', true)
+          .order('es_principal', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+    if (barberoError || !barbero || ubicacionError || !ubicacion) {
+      throw new Error('DATOS_INVALIDOS');
+    }
+
+    const horarios = [0, 1, 2, 3, 4, 5, 6]
+      .filter((dia) => formData.get(`dia_${dia}`) === 'on')
+      .map((dia) => {
+        const inicio = horaHorario.parse(valor(formData, `inicio_${dia}`));
+        const fin = horaHorario.parse(valor(formData, `fin_${dia}`));
+        if (fin <= inicio) throw new Error('DATOS_INVALIDOS');
+        return {
+          organization_id: organizacion.id,
+          barbero_id: barberoId,
+          location_id: ubicacion.id,
+          dia_semana: dia,
+          hora_inicio: inicio,
+          hora_fin: fin,
+          activo: true,
+        };
+      });
+
+    const { error: eliminarError } = await supabase
+      .from('barber_schedules')
+      .delete()
+      .eq('organization_id', organizacion.id)
+      .eq('barbero_id', barberoId)
+      .eq('location_id', ubicacion.id);
+
+    if (eliminarError) throw eliminarError;
+
+    if (horarios.length) {
+      const { error: insertarError } = await supabase.from('barber_schedules').insert(horarios);
+      if (insertarError) throw insertarError;
+    }
+
+    revalidatePath(`/b/${slug}/reservar`);
+  } catch (error) {
+    mensajeError = comoErrorDominio(error).message;
+  }
+
+  terminar(slug, 'barberos', mensajeError);
+}
+
 export async function guardarApariencia(slug: string, formData: FormData) {
   let mensajeError: string | undefined;
   try {
@@ -393,6 +462,19 @@ export async function guardarApariencia(slug: string, formData: FormData) {
     )
       throw new Error('DATOS_INVALIDOS');
 
+    const mostrarNosotros = formData.get('mostrar_nosotros') === 'on';
+    const nosotrosTitulo = z.string().trim().max(120).parse(valor(formData, 'nosotros_titulo'));
+    const nosotrosHistoria = z
+      .string()
+      .trim()
+      .max(2000)
+      .parse(valor(formData, 'nosotros_historia'));
+    const nosotrosFrase = z.string().trim().max(180).parse(valor(formData, 'nosotros_frase'));
+
+    if (mostrarNosotros && (nosotrosTitulo.length < 2 || nosotrosHistoria.length < 20)) {
+      throw new Error('DATOS_INVALIDOS');
+    }
+
     const ubicacion = z
       .object({
         ciudad: z.string().trim().min(2).max(100),
@@ -424,6 +506,10 @@ export async function guardarApariencia(slug: string, formData: FormData) {
         fuente_cuerpo: tema.fuenteCuerpo,
         radio_bordes: tema.radioBordes,
         textura_fondo: tema.textura,
+        nosotros_titulo: nosotrosTitulo || null,
+        nosotros_historia: nosotrosHistoria || null,
+        nosotros_frase: nosotrosFrase || null,
+        mostrar_nosotros: mostrarNosotros,
         publicado_en: new Date().toISOString(),
         actualizado_por: user.id,
       })
