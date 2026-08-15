@@ -85,20 +85,70 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
     } else if (modulo === 'productos') {
       const nombre = texto.parse(valor(formData, 'nombre'));
       const imagenUrl = imagenDeOrganizacion(valor(formData, 'imagen_url'), organizacion.id);
-      const { error } = await supabase.from('products').insert({
+      const existenciasIniciales = z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(1_000_000)
+        .parse(valor(formData, 'existencias_iniciales'));
+      const stockMinimo = z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(1_000_000)
+        .parse(valor(formData, 'stock_minimo') || '2');
+      const { data: ubicacion, error: ubicacionError } = await supabase
+        .from('locations')
+        .select('id')
+        .eq('organization_id', organizacion.id)
+        .eq('activa', true)
+        .order('es_principal', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (ubicacionError) throw ubicacionError;
+      if (!ubicacion) throw new Error('DATOS_INVALIDOS');
+
+      const { data: producto, error: productoError } = await supabase
+        .from('products')
+        .insert({
+          organization_id: organizacion.id,
+          sku: texto.parse(valor(formData, 'sku')).toUpperCase(),
+          slug: slugDe(nombre),
+          nombre,
+          marca: valor(formData, 'marca') || null,
+          descripcion: valor(formData, 'descripcion') || null,
+          imagen_url: imagenUrl,
+          precio_venta_centavos: centavosDe(valor(formData, 'precio')),
+          costo_centavos: centavosDe(valor(formData, 'costo') || '0'),
+          visible_en_tienda: formData.get('visible') === 'on',
+          destacado: formData.get('destacado') === 'on',
+        })
+        .select('id')
+        .single();
+      if (productoError) throw productoError;
+
+      const { error: stockError } = await supabase.from('product_stock').insert({
         organization_id: organizacion.id,
-        sku: texto.parse(valor(formData, 'sku')).toUpperCase(),
-        slug: slugDe(nombre),
-        nombre,
-        marca: valor(formData, 'marca') || null,
-        descripcion: valor(formData, 'descripcion') || null,
-        imagen_url: imagenUrl,
-        precio_venta_centavos: centavosDe(valor(formData, 'precio')),
-        costo_centavos: centavosDe(valor(formData, 'costo') || '0'),
-        visible_en_tienda: formData.get('visible') === 'on',
-        destacado: formData.get('destacado') === 'on',
+        location_id: ubicacion.id,
+        producto_id: producto.id,
+        stock_actual: 0,
+        stock_minimo: stockMinimo,
       });
-      if (error) throw error;
+      if (stockError) throw stockError;
+
+      if (existenciasIniciales > 0) {
+        const { error: movimientoError } = await supabase.from('inventory_movements').insert({
+          organization_id: organizacion.id,
+          location_id: ubicacion.id,
+          producto_id: producto.id,
+          tipo: 'ajuste',
+          cantidad: existenciasIniciales,
+          stock_anterior: 0,
+          stock_nuevo: 0,
+          motivo: 'Existencias iniciales al crear el producto',
+        });
+        if (movimientoError) throw movimientoError;
+      }
     } else {
       throw new Error('DATOS_INVALIDOS');
     }
@@ -193,6 +243,37 @@ export async function cambiarDisponibilidadBarbero(slug: string, formData: FormD
   terminar(slug, 'barberos', mensajeError);
 }
 
+export async function cambiarDisponibilidadProducto(slug: string, formData: FormData) {
+  let mensajeError: string | undefined;
+
+  try {
+    const { supabase, organizacion } = await contextoConPermiso(slug, 'catalogo.editar');
+    const id = uuid.parse(valor(formData, 'id'));
+    const accion = z.enum(['eliminar', 'reactivar']).parse(valor(formData, 'accion'));
+    const reactivar = accion === 'reactivar';
+    const { data, error } = await supabase
+      .from('products')
+      .update({
+        activo: reactivar,
+        visible_en_tienda: reactivar,
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq('organization_id', organizacion.id)
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('NO_ENCONTRADO');
+
+    revalidatePath(`/panel/${slug}/inventario`);
+    revalidatePath(`/b/${slug}`, 'layout');
+  } catch (error) {
+    mensajeError = comoErrorDominio(error).message;
+  }
+
+  terminar(slug, 'productos', mensajeError);
+}
+
 export type TipoImagenRegistro = 'producto' | 'barbero';
 
 export async function actualizarImagenRegistro(
@@ -215,7 +296,10 @@ export async function actualizarImagenRegistro(
       datos.tipo === 'producto'
         ? await supabase
             .from('products')
-            .update({ imagen_url: url, actualizado_en: new Date().toISOString() })
+            .update({
+              imagen_url: url,
+              actualizado_en: new Date().toISOString(),
+            })
             .eq('organization_id', organizacion.id)
             .eq('id', datos.id)
             .select('id')

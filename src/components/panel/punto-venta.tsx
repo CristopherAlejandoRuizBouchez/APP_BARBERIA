@@ -36,7 +36,10 @@ export function PuntoVenta({
     'efectivo' | 'tarjeta_fisica' | 'transferencia' | 'otro'
   >('efectivo');
   const [recibido, setRecibido] = React.useState('');
-  const [estado, setEstado] = React.useState<{ tipo: 'error' | 'ok'; texto: string } | null>(null);
+  const [estado, setEstado] = React.useState<{
+    tipo: 'error' | 'ok';
+    texto: string;
+  } | null>(null);
   const [procesando, iniciar] = React.useTransition();
 
   const visibles = articulos.filter((a) =>
@@ -112,7 +115,7 @@ export function PuntoVenta({
           <Entrada
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar servicio, producto, marca o SKU"
+            placeholder="Buscar servicio, producto, marca o código"
             className="pl-10"
           />
         </div>

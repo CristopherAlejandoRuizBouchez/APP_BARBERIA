@@ -16,12 +16,14 @@ import { PuntoVenta } from '@/components/panel/punto-venta';
 import { EditorApariencia } from '@/components/panel/editor-apariencia';
 import { EditorHorarioBarbero } from '@/components/panel/editor-horario-barbero';
 import { BotonEliminarBarbero } from '@/components/panel/boton-eliminar-barbero';
+import { BotonEliminarProducto } from '@/components/panel/boton-eliminar-producto';
 import { CampoImagenNueva, EditorImagenRegistro } from '@/components/panel/gestor-imagen-registro';
 import { FormularioAccesoRecepcion } from '@/components/panel/formulario-acceso-recepcion';
 import {
   actualizarImagenRegistro,
   cambiarAccesoRecepcion,
   cambiarDisponibilidadBarbero,
+  cambiarDisponibilidadProducto,
   cambiarEstado,
   cambiarDisponibilidadServicio,
   gestionarCaja,
@@ -198,6 +200,10 @@ export default async function ModuloPanel({
   );
   const guardarOperacionOrg = guardarOperacion.bind(null, organizationSlug);
   const cambiarDisponibilidadBarberoOrg = cambiarDisponibilidadBarbero.bind(null, organizationSlug);
+  const cambiarDisponibilidadProductoOrg = cambiarDisponibilidadProducto.bind(
+    null,
+    organizationSlug
+  );
   const actualizarImagenRegistroOrg = actualizarImagenRegistro.bind(null, organizationSlug);
   const cambiarEstadoOrg = cambiarEstado.bind(null, organizationSlug);
   const guardarAparienciaOrg = guardarApariencia.bind(null, organizationSlug);
@@ -485,8 +491,13 @@ export default async function ModuloPanel({
           <Campo etiqueta="Nombre" htmlFor="nombre" requerido>
             <Entrada id="nombre" name="nombre" required />
           </Campo>
-          <Campo etiqueta="SKU" htmlFor="sku" requerido>
-            <Entrada id="sku" name="sku" required />
+          <Campo
+            etiqueta="Código del producto"
+            htmlFor="sku"
+            ayuda="Un código corto para identificarlo, por ejemplo: CERA-01."
+            requerido
+          >
+            <Entrada id="sku" name="sku" placeholder="CERA-01" required />
           </Campo>
           <Campo etiqueta="Marca" htmlFor="marca">
             <Entrada id="marca" name="marca" />
@@ -500,6 +511,36 @@ export default async function ModuloPanel({
           <Campo etiqueta="Descripción" htmlFor="descripcion">
             <Entrada id="descripcion" name="descripcion" />
           </Campo>
+          <Campo
+            etiqueta="Cantidad disponible"
+            htmlFor="existencias_iniciales"
+            ayuda="Escribe cuántas piezas tienes ahora. Si colocas 0, aparecerá Agotado."
+            requerido
+          >
+            <Entrada
+              id="existencias_iniciales"
+              name="existencias_iniciales"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue="1"
+              required
+            />
+          </Campo>
+          <Campo
+            etiqueta="Avisarme cuando queden"
+            htmlFor="stock_minimo"
+            ayuda="El sistema marcará el producto para reponer al llegar a esta cantidad."
+          >
+            <Entrada
+              id="stock_minimo"
+              name="stock_minimo"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue="2"
+            />
+          </Campo>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="visible" defaultChecked /> Visible en tienda
           </label>
@@ -509,7 +550,17 @@ export default async function ModuloPanel({
         </FormularioBase>
         <Tarjeta>
           {data?.length ? (
-            <Tabla encabezados={['Producto', 'Fotografía', 'SKU', 'Costo', 'Precio', 'Tienda']}>
+            <Tabla
+              encabezados={[
+                'Producto',
+                'Fotografía',
+                'Código',
+                'Costo',
+                'Precio',
+                'Estado',
+                'Acciones',
+              ]}
+            >
               {data.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3">
@@ -529,7 +580,17 @@ export default async function ModuloPanel({
                   <td className="px-4 py-3">{p.sku}</td>
                   <td className="cifras px-4 py-3">{formatearMXN(p.costo_centavos)}</td>
                   <td className="cifras px-4 py-3">{formatearMXN(p.precio_venta_centavos)}</td>
-                  <td className="px-4 py-3">{p.visible_en_tienda ? 'Visible' : 'Oculto'}</td>
+                  <td className="px-4 py-3">
+                    {!p.activo ? 'Eliminado' : p.visible_en_tienda ? 'Visible' : 'Oculto'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <BotonEliminarProducto
+                      action={cambiarDisponibilidadProductoOrg}
+                      id={p.id}
+                      nombre={p.nombre}
+                      activo={p.activo}
+                    />
+                  </td>
                 </tr>
               ))}
             </Tabla>
@@ -675,7 +736,7 @@ export default async function ModuloPanel({
                       {b.apodo ? ` “${b.apodo}”` : ''}
                     </TarjetaTitulo>
                     <p className="mt-1 text-sm text-[var(--texto-suave)]">
-                      {(b.especialidades ?? []).join(', ') || 'Sin especialidades registradas'} ·{' '}
+                      {(b.especialidades ?? []).join(', ') || 'Sin especialidades registradas'} ·
                       Comisión {b.comision_servicio_valor}%
                     </p>
                   </div>
@@ -863,7 +924,7 @@ export default async function ModuloPanel({
               <option value="">Selecciona</option>
               {(productos.data ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.nombre} · {p.sku}
+                  {p.nombre} · código {p.sku}
                 </option>
               ))}
             </select>
@@ -894,8 +955,11 @@ export default async function ModuloPanel({
                       <span
                         className="size-11 shrink-0 border border-[var(--borde)] bg-[var(--fondo)] bg-cover bg-center"
                         style={{
-                          backgroundImage: (s.products as unknown as { imagen_url?: string | null })
-                            ?.imagen_url
+                          backgroundImage: (
+                            s.products as unknown as {
+                              imagen_url?: string | null;
+                            }
+                          )?.imagen_url
                             ? `url("${(s.products as unknown as { imagen_url: string }).imagen_url}")`
                             : undefined,
                         }}
