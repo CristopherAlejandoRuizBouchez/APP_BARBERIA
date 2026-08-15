@@ -528,20 +528,6 @@ export default async function ModuloPanel({
               required
             />
           </Campo>
-          <Campo
-            etiqueta="Avisarme cuando queden"
-            htmlFor="stock_minimo"
-            ayuda="El sistema marcará el producto para reponer al llegar a esta cantidad."
-          >
-            <Entrada
-              id="stock_minimo"
-              name="stock_minimo"
-              type="number"
-              min="0"
-              step="1"
-              defaultValue="2"
-            />
-          </Campo>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="visible" defaultChecked /> Visible en tienda
           </label>

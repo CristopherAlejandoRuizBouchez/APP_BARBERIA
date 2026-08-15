@@ -64,7 +64,7 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
   let mensajeError: string | undefined;
 
   try {
-    const { supabase, organizacion } = await contextoConPermiso(slug, 'catalogo.editar');
+    const { supabase, organizacion, user } = await contextoConPermiso(slug, 'catalogo.editar');
     if (modulo === 'servicios') {
       const nombre = texto.parse(valor(formData, 'nombre'));
       const { error } = await supabase.from('services').insert({
@@ -91,22 +91,19 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
         .min(0)
         .max(1_000_000)
         .parse(valor(formData, 'existencias_iniciales'));
-      const stockMinimo = z.coerce
-        .number()
-        .int()
-        .min(0)
-        .max(1_000_000)
-        .parse(valor(formData, 'stock_minimo') || '2');
-      const { data: ubicacion, error: ubicacionError } = await supabase
-        .from('locations')
-        .select('id')
-        .eq('organization_id', organizacion.id)
-        .eq('activa', true)
-        .order('es_principal', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (ubicacionError) throw ubicacionError;
-      if (!ubicacion) throw new Error('DATOS_INVALIDOS');
+      const ubicacion =
+        existenciasIniciales > 0
+          ? await supabase
+              .from('locations')
+              .select('id')
+              .eq('organization_id', organizacion.id)
+              .eq('activa', true)
+              .order('es_principal', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : { data: null, error: null };
+      if (ubicacion.error) throw ubicacion.error;
+      if (existenciasIniciales > 0 && !ubicacion.data) throw new Error('DATOS_INVALIDOS');
 
       const { data: producto, error: productoError } = await supabase
         .from('products')
@@ -125,29 +122,31 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
         })
         .select('id')
         .single();
-      if (productoError) throw productoError;
-
-      const { error: stockError } = await supabase.from('product_stock').insert({
-        organization_id: organizacion.id,
-        location_id: ubicacion.id,
-        producto_id: producto.id,
-        stock_actual: 0,
-        stock_minimo: stockMinimo,
-      });
-      if (stockError) throw stockError;
+      if (productoError) {
+        if (productoError.code === '23505') throw new Error('PRODUCTO_DUPLICADO');
+        throw productoError;
+      }
 
       if (existenciasIniciales > 0) {
         const { error: movimientoError } = await supabase.from('inventory_movements').insert({
           organization_id: organizacion.id,
-          location_id: ubicacion.id,
+          location_id: ubicacion.data!.id,
           producto_id: producto.id,
-          tipo: 'ajuste',
+          tipo: 'inventario_inicial',
           cantidad: existenciasIniciales,
           stock_anterior: 0,
           stock_nuevo: 0,
           motivo: 'Existencias iniciales al crear el producto',
+          usuario_id: user.id,
         });
-        if (movimientoError) throw movimientoError;
+        if (movimientoError) {
+          await supabase
+            .from('products')
+            .delete()
+            .eq('organization_id', organizacion.id)
+            .eq('id', producto.id);
+          throw movimientoError;
+        }
       }
     } else {
       throw new Error('DATOS_INVALIDOS');
