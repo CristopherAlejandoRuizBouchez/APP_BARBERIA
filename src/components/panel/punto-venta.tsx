@@ -43,6 +43,13 @@ export function PuntoVenta({
     `${a.nombre} ${a.detalle}`.toLowerCase().includes(busqueda.toLowerCase())
   );
   const total = ticket.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
+  const recibidoNumero = Number(recibido);
+  const recibidoCentavos =
+    recibido !== '' && Number.isFinite(recibidoNumero) ? Math.round(recibidoNumero * 100) : null;
+  const efectivoCompleto = recibidoCentavos !== null && recibidoCentavos >= total;
+  const cambioCentavos = efectivoCompleto ? recibidoCentavos - total : 0;
+  const faltanteCentavos =
+    recibidoCentavos !== null && recibidoCentavos < total ? total - recibidoCentavos : 0;
 
   function agregar(articulo: Articulo) {
     setTicket((actual) => {
@@ -85,7 +92,13 @@ export function PuntoVenta({
         setEstado({ tipo: 'error', texto: resultado.mensaje });
         return;
       }
-      setEstado({ tipo: 'ok', texto: `Venta ${resultado.datos.folio} registrada correctamente.` });
+      setEstado({
+        tipo: 'ok',
+        texto:
+          resultado.datos.cambioCentavos > 0
+            ? `Venta ${resultado.datos.folio} registrada. Entrega ${formatearMXN(resultado.datos.cambioCentavos)} de cambio.`
+            : `Venta ${resultado.datos.folio} registrada correctamente.`,
+      });
       setTicket([]);
       setRecibido('');
     });
@@ -205,17 +218,37 @@ export function PuntoVenta({
             </select>
           </label>
           {metodo === 'efectivo' ? (
-            <label className="block text-xs text-[var(--texto-suave)]">
-              Efectivo recibido
-              <Entrada
-                type="number"
-                min={total / 100}
-                step="0.01"
-                value={recibido}
-                onChange={(e) => setRecibido(e.target.value)}
-                className="mt-1"
-              />
-            </label>
+            <div className="space-y-3">
+              <label className="block text-xs text-[var(--texto-suave)]">
+                Efectivo recibido
+                <Entrada
+                  type="number"
+                  min={total / 100}
+                  step="0.01"
+                  value={recibido}
+                  onChange={(e) => setRecibido(e.target.value)}
+                  className="mt-1"
+                />
+              </label>
+              {recibidoCentavos !== null && ticket.length ? (
+                <div
+                  className={`flex items-center justify-between border px-3 py-3 ${
+                    efectivoCompleto
+                      ? 'border-exito/40 bg-exito-suave text-exito'
+                      : 'border-peligro/40 bg-peligro-suave text-peligro'
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span className="text-sm font-medium">
+                    {efectivoCompleto ? 'Cambio a entregar' : 'Falta por recibir'}
+                  </span>
+                  <strong className="cifras text-lg">
+                    {formatearMXN(efectivoCompleto ? cambioCentavos : faltanteCentavos)}
+                  </strong>
+                </div>
+              ) : null}
+            </div>
           ) : null}
           <div className="flex items-end justify-between border-t border-[var(--borde)] pt-4">
             <span className="etiqueta">Total</span>
@@ -239,7 +272,7 @@ export function PuntoVenta({
               procesando ||
               !ticket.length ||
               !locationId ||
-              (metodo === 'efectivo' && Number(recibido || total / 100) < total / 100)
+              (metodo === 'efectivo' && recibido !== '' && !efectivoCompleto)
             }
             onClick={cobrar}
           >
