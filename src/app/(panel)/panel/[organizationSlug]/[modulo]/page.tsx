@@ -16,8 +16,10 @@ import { PuntoVenta } from '@/components/panel/punto-venta';
 import { EditorApariencia } from '@/components/panel/editor-apariencia';
 import { EditorHorarioBarbero } from '@/components/panel/editor-horario-barbero';
 import { BotonEliminarBarbero } from '@/components/panel/boton-eliminar-barbero';
+import { CampoImagenNueva, EditorImagenRegistro } from '@/components/panel/gestor-imagen-registro';
 import { FormularioAccesoRecepcion } from '@/components/panel/formulario-acceso-recepcion';
 import {
+  actualizarImagenRegistro,
   cambiarAccesoRecepcion,
   cambiarDisponibilidadBarbero,
   cambiarEstado,
@@ -196,6 +198,7 @@ export default async function ModuloPanel({
   );
   const guardarOperacionOrg = guardarOperacion.bind(null, organizationSlug);
   const cambiarDisponibilidadBarberoOrg = cambiarDisponibilidadBarbero.bind(null, organizationSlug);
+  const actualizarImagenRegistroOrg = actualizarImagenRegistro.bind(null, organizationSlug);
   const cambiarEstadoOrg = cambiarEstado.bind(null, organizationSlug);
   const guardarAparienciaOrg = guardarApariencia.bind(null, organizationSlug);
   const guardarHorarioBarberoOrg = guardarHorarioBarbero.bind(null, organizationSlug);
@@ -472,6 +475,13 @@ export default async function ModuloPanel({
         />
         <Aviso {...avisos} />
         <FormularioBase titulo="Nuevo producto" action={guardarCatalogoOrg} modulo="productos">
+          <CampoImagenNueva
+            organizationId={orgId}
+            nombreCampo="imagen_url"
+            carpeta="productos"
+            etiqueta="Fotografía del producto"
+            ayuda="Se mostrará en el catálogo y en la tienda pública."
+          />
           <Campo etiqueta="Nombre" htmlFor="nombre" requerido>
             <Entrada id="nombre" name="nombre" required />
           </Campo>
@@ -499,12 +509,22 @@ export default async function ModuloPanel({
         </FormularioBase>
         <Tarjeta>
           {data?.length ? (
-            <Tabla encabezados={['Producto', 'SKU', 'Costo', 'Precio', 'Tienda']}>
+            <Tabla encabezados={['Producto', 'Fotografía', 'SKU', 'Costo', 'Precio', 'Tienda']}>
               {data.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3">
                     <strong>{p.nombre}</strong>
                     <span className="block text-xs text-[var(--texto-tenue)]">{p.marca}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <EditorImagenRegistro
+                      organizationId={orgId}
+                      tipo="producto"
+                      id={p.id}
+                      nombre={p.nombre}
+                      urlInicial={p.imagen_url}
+                      action={actualizarImagenRegistroOrg}
+                    />
                   </td>
                   <td className="px-4 py-3">{p.sku}</td>
                   <td className="cifras px-4 py-3">{formatearMXN(p.costo_centavos)}</td>
@@ -613,6 +633,13 @@ export default async function ModuloPanel({
         />
         <Aviso {...avisos} />
         <FormularioBase titulo="Nuevo barbero" action={guardarOperacionOrg} modulo="barberos">
+          <CampoImagenNueva
+            organizationId={orgId}
+            nombreCampo="foto_url"
+            carpeta="barberos"
+            etiqueta="Fotografía del barbero"
+            ayuda="Recomendado: retrato vertical, claro y con buena iluminación."
+          />
           <Campo etiqueta="Nombre" htmlFor="nombre" requerido>
             <Entrada id="nombre" name="nombre" required />
           </Campo>
@@ -653,6 +680,14 @@ export default async function ModuloPanel({
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <EditorImagenRegistro
+                      organizationId={orgId}
+                      tipo="barbero"
+                      id={b.id}
+                      nombre={b.nombre}
+                      urlInicial={b.foto_url}
+                      action={actualizarImagenRegistroOrg}
+                    />
                     <span
                       className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
                         b.activo
@@ -796,7 +831,9 @@ export default async function ModuloPanel({
     const [stock, productos, ubicaciones] = await Promise.all([
       supabase
         .from('product_stock')
-        .select('producto_id, location_id, stock_actual, stock_minimo, products(nombre, sku)')
+        .select(
+          'producto_id, location_id, stock_actual, stock_minimo, products(nombre, sku, imagen_url)'
+        )
         .eq('organization_id', orgId)
         .order('stock_actual'),
       supabase
@@ -853,7 +890,19 @@ export default async function ModuloPanel({
               {stock.data.map((s) => (
                 <tr key={`${s.producto_id}-${s.location_id}`}>
                   <td className="px-4 py-3">
-                    {(s.products as unknown as { nombre?: string })?.nombre}
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="size-11 shrink-0 border border-[var(--borde)] bg-[var(--fondo)] bg-cover bg-center"
+                        style={{
+                          backgroundImage: (s.products as unknown as { imagen_url?: string | null })
+                            ?.imagen_url
+                            ? `url("${(s.products as unknown as { imagen_url: string }).imagen_url}")`
+                            : undefined,
+                        }}
+                        aria-hidden="true"
+                      />
+                      <span>{(s.products as unknown as { nombre?: string })?.nombre}</span>
+                    </div>
                   </td>
                   <td className="cifras px-4 py-3">{s.stock_actual}</td>
                   <td className="cifras px-4 py-3">{s.stock_minimo}</td>

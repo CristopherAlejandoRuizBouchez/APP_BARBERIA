@@ -9,7 +9,7 @@ import { comoErrorDominio, fallo, exito, type Resultado } from '@/lib/errores';
 import { puede, type Permiso } from '@/lib/tenant/roles';
 import { crearClienteAdmin } from '@/lib/supabase/admin';
 import { env, hostsDeAlmacenamiento } from '@/lib/env';
-import { contrasteSuficiente, validarTema } from '@/lib/temas/validacion';
+import { contrasteSuficiente, validarTema, validarUrlImagen } from '@/lib/temas/validacion';
 
 const texto = z.string().trim().min(1).max(180);
 const uuid = z.string().uuid();
@@ -33,6 +33,18 @@ function centavosDe(entrada: string): number {
   const importe = parsearImporte(entrada);
   if (importe === null || importe < 0) throw new Error('DATOS_INVALIDOS');
   return importe;
+}
+
+function imagenDeOrganizacion(entrada: unknown, organizationId: string): string | null {
+  const problemas: Array<{ campo: string; mensaje: string }> = [];
+  const imagen = validarUrlImagen('imagen', entrada, hostsDeAlmacenamiento(), problemas);
+  if (problemas.length) throw new Error('DATOS_INVALIDOS');
+  if (!imagen) return null;
+
+  const ruta = decodeURIComponent(new URL(imagen).pathname);
+  const carpetaPermitida = `/storage/v1/object/public/publico/${organizationId}/`;
+  if (!ruta.includes(carpetaPermitida)) throw new Error('NO_AUTORIZADO');
+  return imagen;
 }
 
 async function contextoConPermiso(slug: string, permiso: Permiso) {
@@ -72,6 +84,7 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
       if (error) throw error;
     } else if (modulo === 'productos') {
       const nombre = texto.parse(valor(formData, 'nombre'));
+      const imagenUrl = imagenDeOrganizacion(valor(formData, 'imagen_url'), organizacion.id);
       const { error } = await supabase.from('products').insert({
         organization_id: organizacion.id,
         sku: texto.parse(valor(formData, 'sku')).toUpperCase(),
@@ -79,6 +92,7 @@ export async function guardarCatalogo(slug: string, formData: FormData) {
         nombre,
         marca: valor(formData, 'marca') || null,
         descripcion: valor(formData, 'descripcion') || null,
+        imagen_url: imagenUrl,
         precio_venta_centavos: centavosDe(valor(formData, 'precio')),
         costo_centavos: centavosDe(valor(formData, 'costo') || '0'),
         visible_en_tienda: formData.get('visible') === 'on',
@@ -179,6 +193,53 @@ export async function cambiarDisponibilidadBarbero(slug: string, formData: FormD
   terminar(slug, 'barberos', mensajeError);
 }
 
+export type TipoImagenRegistro = 'producto' | 'barbero';
+
+export async function actualizarImagenRegistro(
+  slug: string,
+  entrada: { tipo: TipoImagenRegistro; id: string; url: string | null }
+): Promise<Resultado<{ url: string | null }>> {
+  try {
+    const datos = z
+      .object({
+        tipo: z.enum(['producto', 'barbero']),
+        id: z.string().uuid(),
+        url: z.string().nullable(),
+      })
+      .parse(entrada);
+    const permiso: Permiso = datos.tipo === 'producto' ? 'catalogo.editar' : 'barberos.gestionar';
+    const { supabase, organizacion } = await contextoConPermiso(slug, permiso);
+    const url = imagenDeOrganizacion(datos.url ?? '', organizacion.id);
+
+    const resultado =
+      datos.tipo === 'producto'
+        ? await supabase
+            .from('products')
+            .update({ imagen_url: url, actualizado_en: new Date().toISOString() })
+            .eq('organization_id', organizacion.id)
+            .eq('id', datos.id)
+            .select('id')
+            .maybeSingle()
+        : await supabase
+            .from('barbers')
+            .update({ foto_url: url, actualizado_en: new Date().toISOString() })
+            .eq('organization_id', organizacion.id)
+            .eq('id', datos.id)
+            .select('id')
+            .maybeSingle();
+
+    if (resultado.error) throw resultado.error;
+    if (!resultado.data) throw new Error('NO_ENCONTRADO');
+
+    revalidatePath(`/panel/${slug}/${datos.tipo === 'producto' ? 'productos' : 'barberos'}`);
+    revalidatePath(`/panel/${slug}/inventario`);
+    revalidatePath(`/b/${slug}`, 'layout');
+    return exito({ url });
+  } catch (error) {
+    return fallo(error);
+  }
+}
+
 export async function guardarOperacion(slug: string, formData: FormData) {
   const modulo = valor(formData, 'modulo');
   let mensajeError: string | undefined;
@@ -223,6 +284,7 @@ export async function guardarOperacion(slug: string, formData: FormData) {
       if (error) throw error;
     } else if (modulo === 'barberos') {
       const nombre = texto.parse(valor(formData, 'nombre'));
+      const fotoUrl = imagenDeOrganizacion(valor(formData, 'foto_url'), organizacion.id);
       const { data: barbero, error } = await supabase
         .from('barbers')
         .insert({
@@ -231,6 +293,7 @@ export async function guardarOperacion(slug: string, formData: FormData) {
           nombre,
           apodo: valor(formData, 'apodo') || null,
           bio: valor(formData, 'bio') || null,
+          foto_url: fotoUrl,
           especialidades: valor(formData, 'especialidades')
             .split(',')
             .map((item) => item.trim())
