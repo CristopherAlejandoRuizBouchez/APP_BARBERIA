@@ -471,6 +471,7 @@ export default async function ModuloPanel({
       .from('products')
       .select('*')
       .eq('organization_id', orgId)
+      .eq('activo', true)
       .order('nombre');
     return (
       <div className="space-y-5">
@@ -667,6 +668,7 @@ export default async function ModuloPanel({
         .from('barbers')
         .select('*')
         .eq('organization_id', orgId)
+        .eq('activo', true)
         .order('orden')
         .order('nombre'),
       supabase
@@ -893,9 +895,10 @@ export default async function ModuloPanel({
       supabase
         .from('product_stock')
         .select(
-          'producto_id, location_id, stock_actual, stock_minimo, products(nombre, sku, imagen_url)'
+          'producto_id, location_id, stock_actual, stock_minimo, products!inner(nombre, sku, imagen_url, activo)'
         )
         .eq('organization_id', orgId)
+        .eq('products.activo', true)
         .order('stock_actual'),
       supabase
         .from('products')
