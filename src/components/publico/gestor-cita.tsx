@@ -162,14 +162,48 @@ export function GestorCita({
           </dt>
           <dd className="mt-1">{cita.barbero}</dd>
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <dt
             className="flex items-center gap-2 text-xs"
             style={{ color: 'var(--tema-texto-suave)' }}
           >
-            <Scissors className="size-4" /> Total
+            <Scissors className="size-4" /> Servicios
           </dt>
-          <dd className="cifras mt-1 text-xl">{formatearMXN(cita.totalCentavos)}</dd>
+          <dd className="mt-3 space-y-2">
+            {cita.servicios.map((servicio) => (
+              <div key={servicio.id} className="flex justify-between gap-4 text-sm">
+                <span>
+                  {servicio.nombre}{' '}
+                  <span style={{ color: 'var(--tema-texto-suave)' }}>
+                    · {servicio.duracionMinutos} min
+                  </span>
+                </span>
+                <span className="cifras">{formatearMXN(servicio.precioCentavos)}</span>
+              </div>
+            ))}
+          </dd>
+        </div>
+        <div
+          className="sm:col-span-2 border p-4"
+          style={{ borderColor: 'var(--tema-borde)', background: 'var(--tema-fondo)' }}
+        >
+          <div className="flex justify-between gap-4 text-sm">
+            <span>Servicios</span>
+            <span className="cifras">{formatearMXN(cita.subtotalCentavos)}</span>
+          </div>
+          <div className="mt-2 flex justify-between gap-4 text-sm">
+            <span>{cita.esExpress ? 'Cargo por cita exprés' : 'Cargo por reservación'}</span>
+            <span className="cifras">{formatearMXN(cita.recargoCentavos)}</span>
+          </div>
+          <div
+            className="mt-3 flex justify-between gap-4 border-t pt-3 text-lg font-semibold"
+            style={{ borderColor: 'var(--tema-borde)' }}
+          >
+            <span>Total</span>
+            <span className="cifras" style={{ color: 'var(--tema-primario)' }}>
+              {formatearMXN(cita.totalCentavos)}
+            </span>
+          </div>
         </div>
       </dl>
       {cita.cancelacionPermitida ? (

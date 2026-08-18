@@ -23,6 +23,10 @@ type CitaInicial = {
   clienteId: string;
   clienteNombre: string;
   barberoId: string;
+  subtotalCentavos: number;
+  recargoCentavos: number;
+  totalCentavos: number;
+  esExpress: boolean;
   servicios: Array<{
     id: string;
     nombre: string;
@@ -65,12 +69,18 @@ export function PuntoVenta({
     tipo: 'error' | 'ok';
     texto: string;
   } | null>(null);
+  const [citaCobrada, setCitaCobrada] = React.useState(false);
   const [procesando, iniciar] = React.useTransition();
 
   const visibles = articulos.filter((a) =>
     `${a.nombre} ${a.detalle}`.toLowerCase().includes(busqueda.toLowerCase())
   );
-  const total = ticket.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
+  const subtotalArticulos = ticket.reduce(
+    (suma, linea) => suma + linea.precioCentavos * linea.cantidad,
+    0
+  );
+  const recargoCita = citaInicial && !citaCobrada ? citaInicial.recargoCentavos : 0;
+  const total = subtotalArticulos + recargoCita;
   const recibidoNumero = Number(recibido);
   const recibidoCentavos =
     recibido !== '' && Number.isFinite(recibidoNumero) ? Math.round(recibidoNumero * 100) : null;
@@ -130,6 +140,7 @@ export function PuntoVenta({
       });
       setTicket([]);
       setRecibido('');
+      setCitaCobrada(true);
     });
   }
 
@@ -141,6 +152,12 @@ export function PuntoVenta({
             <p className="etiqueta text-dorado">Cobrando cita {citaInicial.folio}</p>
             <p className="mt-1 text-sm text-[var(--texto-suave)]">
               Cliente: {citaInicial.clienteNombre}. Los servicios y el barbero ya están cargados.
+            </p>
+            <p className="cifras mt-2 text-sm text-dorado">
+              Servicios {formatearMXN(citaInicial.subtotalCentavos)} +{' '}
+              {citaInicial.esExpress ? 'cargo exprés' : 'cargo por reservación'}{' '}
+              {formatearMXN(citaInicial.recargoCentavos)} ={' '}
+              {formatearMXN(citaInicial.totalCentavos)}
             </p>
           </div>
         ) : null}
@@ -226,6 +243,21 @@ export function PuntoVenta({
           ) : null}
         </div>
         <div className="space-y-3 border-t border-[var(--borde)] p-5">
+          {citaInicial && !citaCobrada ? (
+            <div className="flex items-center justify-between border border-dorado/35 bg-dorado/10 px-3 py-3">
+              <div>
+                <p className="text-sm font-medium">
+                  {citaInicial.esExpress ? 'Cargo por cita exprés' : 'Cargo por reservación'}
+                </p>
+                <p className="mt-1 text-[11px] text-[var(--texto-tenue)]">
+                  Se cobra una sola vez por la cita.
+                </p>
+              </div>
+              <strong className="cifras text-dorado">
+                {formatearMXN(citaInicial.recargoCentavos)}
+              </strong>
+            </div>
+          ) : null}
           <label className="block text-xs text-[var(--texto-suave)]">
             Barbero (opcional)
             <select

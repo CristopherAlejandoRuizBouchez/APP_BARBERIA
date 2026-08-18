@@ -879,6 +879,8 @@ export async function guardarConfiguracion(slug: string, formData: FormData) {
         cancelacion: z.coerce.number().int().min(0).max(168),
         reserva: z.coerce.number().int().min(5).max(1440),
         recordatorio: z.coerce.number().int().min(1).max(168),
+        recargoAgenda: z.number().int().min(0).max(1000000),
+        recargoExpress: z.number().int().min(0).max(1000000),
       })
       .parse({
         intervalo: valor(formData, 'intervalo'),
@@ -887,6 +889,8 @@ export async function guardarConfiguracion(slug: string, formData: FormData) {
         cancelacion: valor(formData, 'cancelacion'),
         reserva: valor(formData, 'reserva'),
         recordatorio: valor(formData, 'recordatorio'),
+        recargoAgenda: centavosDe(valor(formData, 'recargo_agenda')),
+        recargoExpress: centavosDe(valor(formData, 'recargo_express')),
       });
     const { error } = await supabase
       .from('organization_settings')
@@ -898,6 +902,8 @@ export async function guardarConfiguracion(slug: string, formData: FormData) {
         reserva_pedido_activa: formData.get('reserva_activa') === 'on',
         reserva_pedido_minutos: datos.reserva,
         express_activa: formData.get('express_activa') === 'on',
+        recargo_agenda_centavos: datos.recargoAgenda,
+        recargo_express_centavos: datos.recargoExpress,
         recordatorio_1_activo: formData.get('recordatorio_activo') === 'on',
         recordatorio_1_horas_antes: datos.recordatorio,
       })
@@ -985,7 +991,7 @@ export async function crearVentaPos(
         ? supabase
             .from('appointments')
             .select(
-              'id, cliente_id, barbero_id, estado, venta_id, appointment_services(servicio_id, precio_centavos)'
+              'id, cliente_id, barbero_id, estado, venta_id, recargo_centavos, appointment_services(servicio_id, precio_centavos)'
             )
             .eq('organization_id', organizacion.id)
             .eq('id', citaId)
@@ -1010,10 +1016,11 @@ export async function crearVentaPos(
         }
       }
     }
-    const total = items.reduce(
+    const subtotalItems = items.reduce(
       (suma, item) => suma + (precios.get(item.id) ?? 0) * item.cantidad,
       0
     );
+    const total = subtotalItems + Number(cita.data?.recargo_centavos ?? 0);
     if (total <= 0 || precios.size !== new Set(items.map((i) => i.id)).size)
       throw new Error('DATOS_INVALIDOS');
 

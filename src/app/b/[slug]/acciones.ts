@@ -20,7 +20,18 @@ export async function crearCitaPublica(
     telefono: string;
     notas?: string;
   }
-): Promise<Resultado<{ folio: string; totalCentavos: number; fin: string; token: string }>> {
+): Promise<
+  Resultado<{
+    folio: string;
+    subtotalCentavos: number;
+    recargoCentavos: number;
+    totalCentavos: number;
+    esExpress: boolean;
+    fin: string;
+    token: string;
+    servicios: ServicioCitaPublica[];
+  }>
+> {
   try {
     const org = await organizacionPorSlug(slug);
     if (!org) throw new Error('NO_ENCONTRADO');
@@ -52,16 +63,35 @@ export async function crearCitaPublica(
     });
     if (error) throw error;
     const cita = Array.isArray(data) ? data[0] : data;
+    const servicios = Array.isArray(cita?.servicios)
+      ? cita.servicios.map((servicio: Record<string, unknown>) => ({
+          id: String(servicio.id ?? ''),
+          nombre: String(servicio.nombre ?? 'Servicio'),
+          precioCentavos: Number(servicio.precio_centavos ?? 0),
+          duracionMinutos: Number(servicio.duracion_minutos ?? 0),
+        }))
+      : [];
     return exito({
       folio: String(cita?.folio ?? ''),
+      subtotalCentavos: Number(cita?.subtotal_centavos ?? 0),
+      recargoCentavos: Number(cita?.recargo_centavos ?? 0),
       totalCentavos: Number(cita?.total_centavos ?? 0),
+      esExpress: Boolean(cita?.es_express),
       fin: String(cita?.fin ?? ''),
       token: String(cita?.token_acceso ?? ''),
+      servicios,
     });
   } catch (error) {
     return fallo(error);
   }
 }
+
+export type ServicioCitaPublica = {
+  id: string;
+  nombre: string;
+  precioCentavos: number;
+  duracionMinutos: number;
+};
 
 export type CitaPublica = {
   citaId: string;
@@ -69,7 +99,11 @@ export type CitaPublica = {
   inicio: string;
   fin: string;
   estado: string;
+  subtotalCentavos: number;
+  recargoCentavos: number;
   totalCentavos: number;
+  esExpress: boolean;
+  servicios: ServicioCitaPublica[];
   cliente: string;
   barbero: string;
   sucursal: string;
@@ -91,13 +125,25 @@ export async function consultarCitaPublica(
     if (error) throw error;
     const cita = Array.isArray(data) ? data[0] : data;
     if (!cita) throw new Error('NO_ENCONTRADO');
+    const servicios = Array.isArray(cita.servicios)
+      ? cita.servicios.map((servicio: Record<string, unknown>) => ({
+          id: String(servicio.id ?? ''),
+          nombre: String(servicio.nombre ?? 'Servicio'),
+          precioCentavos: Number(servicio.precio_centavos ?? 0),
+          duracionMinutos: Number(servicio.duracion_minutos ?? 0),
+        }))
+      : [];
     return exito({
       citaId: String(cita.cita_id),
       folio: String(cita.folio),
       inicio: String(cita.inicio),
       fin: String(cita.fin),
       estado: String(cita.estado),
+      subtotalCentavos: Number(cita.subtotal_centavos ?? 0),
+      recargoCentavos: Number(cita.recargo_centavos ?? 0),
       totalCentavos: Number(cita.total_centavos),
+      esExpress: Boolean(cita.es_express),
+      servicios,
       cliente: String(cita.cliente_nombre),
       barbero: String(cita.barbero_nombre),
       sucursal: String(cita.sucursal_nombre),

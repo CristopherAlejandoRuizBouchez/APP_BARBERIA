@@ -272,7 +272,7 @@ export default async function ModuloPanel({
         ? supabase
             .from('appointments')
             .select(
-              'id, folio, cliente_id, barbero_id, estado, customers(nombre), appointment_services(servicio_id, nombre_congelado, precio_centavos, duracion_minutos, orden)'
+              'id, folio, cliente_id, barbero_id, estado, subtotal_centavos, recargo_centavos, total_centavos, es_express, customers(nombre), appointment_services(servicio_id, nombre_congelado, precio_centavos, duracion_minutos, orden)'
             )
             .eq('organization_id', orgId)
             .eq('id', citaId)
@@ -334,6 +334,10 @@ export default async function ModuloPanel({
                     (cita.data.customers as unknown as { nombre?: string } | null)?.nombre ??
                     'Cliente',
                   barberoId: cita.data.barbero_id,
+                  subtotalCentavos: cita.data.subtotal_centavos,
+                  recargoCentavos: cita.data.recargo_centavos,
+                  totalCentavos: cita.data.total_centavos,
+                  esExpress: cita.data.es_express,
                   servicios: serviciosDeCita,
                 }
               : undefined
@@ -358,7 +362,7 @@ export default async function ModuloPanel({
     let consulta = supabase
       .from('appointments')
       .select(
-        'id, folio, fecha_hora_inicio, fecha_hora_fin, estado, total_centavos, customers(nombre, telefono), barbers(nombre), appointment_services(nombre_congelado, precio_centavos, duracion_minutos, orden)'
+        'id, folio, fecha_hora_inicio, fecha_hora_fin, estado, es_express, subtotal_centavos, recargo_centavos, total_centavos, customers(nombre, telefono), barbers(nombre), appointment_services(nombre_congelado, precio_centavos, duracion_minutos, orden)'
       )
       .eq('organization_id', orgId)
       .in('estado', ['pendiente', 'confirmada'])
@@ -425,7 +429,7 @@ export default async function ModuloPanel({
                       return (
                         <div
                           key={cita.id}
-                          className="grid items-center gap-4 p-5 md:grid-cols-[7rem_minmax(12rem,1fr)_minmax(8rem,0.6fr)_7rem_auto]"
+                          className="grid items-center gap-4 p-5 md:grid-cols-[7rem_minmax(12rem,1fr)_minmax(8rem,0.6fr)_11rem_auto]"
                         >
                           <div>
                             <p className="cifras flex items-center gap-2 text-base font-semibold">
@@ -457,9 +461,16 @@ export default async function ModuloPanel({
                                 '—'}
                             </p>
                           </div>
-                          <p className="cifras font-semibold text-dorado">
-                            {formatearMXN(cita.total_centavos)}
-                          </p>
+                          <div>
+                            <p className="cifras font-semibold text-dorado">
+                              {formatearMXN(cita.total_centavos)}
+                            </p>
+                            <p className="mt-1 text-[11px] text-[var(--texto-tenue)]">
+                              Servicios {formatearMXN(cita.subtotal_centavos)} +{' '}
+                              {cita.es_express ? 'exprés' : 'reservación'}{' '}
+                              {formatearMXN(cita.recargo_centavos)}
+                            </p>
+                          </div>
                           {modulo === 'agenda' ? (
                             <Boton comoHijo variante="acento" tamano="sm">
                               <Link href={`/panel/${organizationSlug}/pos?cita=${cita.id}`}>
@@ -1935,6 +1946,38 @@ export default async function ModuloPanel({
                   required
                 />
               </Campo>
+              <Campo
+                etiqueta="Cargo por reservación ($)"
+                htmlFor="recargo_agenda"
+                ayuda="Se cobra una sola vez cuando la cita es para otro día."
+              >
+                <Entrada
+                  id="recargo_agenda"
+                  name="recargo_agenda"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  step="0.01"
+                  defaultValue={(ajustes?.recargo_agenda_centavos ?? 3000) / 100}
+                  required
+                />
+              </Campo>
+              <Campo
+                etiqueta="Cargo por cita para hoy ($)"
+                htmlFor="recargo_express"
+                ayuda="Sustituye al cargo normal cuando la reservación es para el mismo día."
+              >
+                <Entrada
+                  id="recargo_express"
+                  name="recargo_express"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  step="0.01"
+                  defaultValue={(ajustes?.recargo_express_centavos ?? 5000) / 100}
+                  required
+                />
+              </Campo>
               <Campo etiqueta="Reserva de producto (min)" htmlFor="reserva">
                 <Entrada
                   id="reserva"
@@ -1963,7 +2006,7 @@ export default async function ModuloPanel({
                   name="express_activa"
                   defaultChecked={ajustes?.express_activa ?? true}
                 />{' '}
-                Cita exprés activa
+                Permitir reservaciones para el mismo día
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -1996,9 +2039,12 @@ export default async function ModuloPanel({
               ['Intervalo de agenda', `${ajustes?.intervalo_slots_minutos ?? 15} min`],
               ['Anticipación mínima', `${ajustes?.anticipacion_minima_minutos ?? 60} min`],
               ['Máximo para reservar', `${ajustes?.anticipacion_maxima_dias ?? 60} días`],
+              ['Cargo por reservación', formatearMXN(ajustes?.recargo_agenda_centavos ?? 3000)],
               [
-                'Cita exprés',
-                ajustes?.express_activa ? `Activa ×${ajustes.express_multiplicador}` : 'Inactiva',
+                'Cita para hoy',
+                ajustes?.express_activa
+                  ? `Permitida · ${formatearMXN(ajustes?.recargo_express_centavos ?? 5000)}`
+                  : 'No permitida',
               ],
               [
                 'Reserva de pedidos',

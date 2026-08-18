@@ -6,12 +6,24 @@ import { organizacionPorSlug } from '@/lib/tenant/resolver';
 
 export const metadata: Metadata = { title: 'Reservar cita' };
 
+function fechaEnZona(fecha: Date, zonaHoraria: string): string {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zonaHoraria,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(fecha);
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((parte) => parte.type === tipo)?.value ?? '';
+  return `${valor('year')}-${valor('month')}-${valor('day')}`;
+}
+
 export default async function Reservar({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const org = await organizacionPorSlug(slug);
   if (!org) notFound();
   const supabase = crearClientePublico();
-  const [sucursales, barberos, servicios] = await Promise.all([
+  const [sucursales, barberos, servicios, ajustes] = await Promise.all([
     supabase
       .from('locations')
       .select('id, nombre')
@@ -30,7 +42,15 @@ export default async function Reservar({ params }: { params: Promise<{ slug: str
       .eq('organization_id', org.id)
       .eq('activo', true)
       .order('orden'),
+    supabase
+      .from('organization_settings')
+      .select('recargo_agenda_centavos, recargo_express_centavos, express_activa')
+      .eq('organization_id', org.id)
+      .maybeSingle(),
   ]);
+  const ahora = new Date();
+  const fechaHoy = fechaEnZona(ahora, org.zonaHoraria);
+  const fechaInicial = fechaEnZona(new Date(ahora.getTime() + 86_400_000), org.zonaHoraria);
   const listo = sucursales.data?.length && barberos.data?.length && servicios.data?.length;
   return (
     <div className="mx-auto w-full px-5 py-16" style={{ maxWidth: 'var(--tema-ancho)' }}>
@@ -51,6 +71,11 @@ export default async function Reservar({ params }: { params: Promise<{ slug: str
           sucursales={sucursales.data ?? []}
           barberos={barberos.data ?? []}
           servicios={servicios.data ?? []}
+          fechaHoy={fechaHoy}
+          fechaInicial={fechaInicial}
+          recargoAgendaCentavos={ajustes.data?.recargo_agenda_centavos ?? 3000}
+          recargoExpressCentavos={ajustes.data?.recargo_express_centavos ?? 5000}
+          expressActiva={ajustes.data?.express_activa ?? true}
         />
       ) : (
         <p className="border p-8 text-center" style={{ borderColor: 'var(--tema-borde)' }}>
