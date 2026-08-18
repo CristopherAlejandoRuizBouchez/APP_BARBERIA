@@ -17,21 +17,46 @@ type Articulo = {
 
 type Linea = Articulo & { cantidad: number };
 
+type CitaInicial = {
+  id: string;
+  folio: string;
+  clienteId: string;
+  clienteNombre: string;
+  barberoId: string;
+  servicios: Array<{
+    id: string;
+    nombre: string;
+    precioCentavos: number;
+    duracionMinutos: number;
+  }>;
+};
+
 export function PuntoVenta({
   slug,
   articulos,
   sucursales,
   barberos,
+  citaInicial,
 }: {
   slug: string;
   articulos: Articulo[];
   sucursales: { id: string; nombre: string }[];
   barberos: { id: string; nombre: string }[];
+  citaInicial?: CitaInicial;
 }) {
   const [busqueda, setBusqueda] = React.useState('');
-  const [ticket, setTicket] = React.useState<Linea[]>([]);
+  const [ticket, setTicket] = React.useState<Linea[]>(() =>
+    (citaInicial?.servicios ?? []).map((servicio) => ({
+      id: servicio.id,
+      tipo: 'servicio' as const,
+      nombre: servicio.nombre,
+      precioCentavos: servicio.precioCentavos,
+      detalle: `${servicio.duracionMinutos} min · cita ${citaInicial?.folio}`,
+      cantidad: 1,
+    }))
+  );
   const locationId = sucursales[0]?.id ?? '';
-  const [barberoId, setBarberoId] = React.useState('');
+  const [barberoId, setBarberoId] = React.useState(citaInicial?.barberoId ?? '');
   const [metodo, setMetodo] = React.useState<
     'efectivo' | 'tarjeta_fisica' | 'transferencia' | 'otro'
   >('efectivo');
@@ -89,6 +114,7 @@ export function PuntoVenta({
         items,
         metodo,
         ...(barberoId ? { barberoId } : {}),
+        ...(citaInicial ? { citaId: citaInicial.id, clienteId: citaInicial.clienteId } : {}),
         ...(recibido ? { recibidoPesos: Number(recibido) } : {}),
       });
       if (!resultado.ok) {
@@ -110,6 +136,14 @@ export function PuntoVenta({
   return (
     <div className="grid min-h-[calc(100dvh-8rem)] gap-4 xl:grid-cols-[1fr_25rem]">
       <section>
+        {citaInicial ? (
+          <div className="mb-4 border border-dorado/45 bg-dorado/10 px-4 py-3">
+            <p className="etiqueta text-dorado">Cobrando cita {citaInicial.folio}</p>
+            <p className="mt-1 text-sm text-[var(--texto-suave)]">
+              Cliente: {citaInicial.clienteNombre}. Los servicios y el barbero ya están cargados.
+            </p>
+          </div>
+        ) : null}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--texto-tenue)]" />
           <Entrada

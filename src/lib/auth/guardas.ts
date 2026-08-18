@@ -29,7 +29,7 @@ export async function requerirOrganizacion(slug: string) {
   const { supabase, user } = await requerirUsuario();
   const { data: organizacion } = await supabase
     .from('organizations')
-    .select('id, slug, nombre_comercial, estado')
+    .select('id, slug, nombre_comercial, estado, zona_horaria')
     .eq('slug', slug)
     .maybeSingle();
   if (!organizacion) notFound();

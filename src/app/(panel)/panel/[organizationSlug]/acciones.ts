@@ -946,6 +946,7 @@ export async function crearVentaPos(
     recibidoPesos?: number;
     barberoId?: string;
     clienteId?: string;
+    citaId?: string;
   }
 ): Promise<Resultado<{ folio: string; totalCentavos: number; cambioCentavos: number }>> {
   try {
@@ -964,7 +965,8 @@ export async function crearVentaPos(
 
     const idsProductos = items.filter((i) => i.tipo === 'producto').map((i) => i.id);
     const idsServicios = items.filter((i) => i.tipo === 'servicio').map((i) => i.id);
-    const [productos, servicios] = await Promise.all([
+    const citaId = entrada.citaId ? uuid.parse(entrada.citaId) : null;
+    const [productos, servicios, cita] = await Promise.all([
       idsProductos.length
         ? supabase
             .from('products')
@@ -979,11 +981,35 @@ export async function crearVentaPos(
             .eq('organization_id', organizacion.id)
             .in('id', idsServicios)
         : Promise.resolve({ data: [], error: null }),
+      citaId
+        ? supabase
+            .from('appointments')
+            .select(
+              'id, cliente_id, barbero_id, estado, venta_id, appointment_services(servicio_id, precio_centavos)'
+            )
+            .eq('organization_id', organizacion.id)
+            .eq('id', citaId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
-    if (productos.error || servicios.error) throw productos.error ?? servicios.error;
+    if (productos.error || servicios.error || cita.error)
+      throw productos.error ?? servicios.error ?? cita.error;
+    if (citaId && (!cita.data || cita.data.venta_id || cita.data.estado === 'completada'))
+      throw new Error('DATOS_INVALIDOS');
     const precios = new Map<string, number>();
     for (const p of productos.data ?? []) precios.set(p.id, p.precio_venta_centavos);
     for (const s of servicios.data ?? []) precios.set(s.id, s.precio_centavos);
+    if (cita.data) {
+      const serviciosEnTicket = new Set(idsServicios);
+      for (const servicio of (cita.data.appointment_services ?? []) as unknown as Array<{
+        servicio_id: string | null;
+        precio_centavos: number;
+      }>) {
+        if (servicio.servicio_id && serviciosEnTicket.has(servicio.servicio_id)) {
+          precios.set(servicio.servicio_id, servicio.precio_centavos);
+        }
+      }
+    }
     const total = items.reduce(
       (suma, item) => suma + (precios.get(item.id) ?? 0) * item.cantidad,
       0
@@ -1005,9 +1031,9 @@ export async function crearVentaPos(
       p_location_id: uuid.parse(entrada.locationId),
       p_items: items,
       p_pagos: [pago],
-      p_cliente_id: entrada.clienteId || null,
-      p_barbero_id: entrada.barberoId || null,
-      p_cita_id: null,
+      p_cliente_id: cita.data?.cliente_id ?? entrada.clienteId ?? null,
+      p_barbero_id: cita.data?.barbero_id ?? entrada.barberoId ?? null,
+      p_cita_id: citaId,
       p_pedido_id: null,
       p_descuento_centavos: 0,
       p_notas: null,
@@ -1015,6 +1041,7 @@ export async function crearVentaPos(
     if (error) throw error;
     const venta = Array.isArray(data) ? data[0] : data;
     revalidatePath(`/panel/${slug}`);
+    revalidatePath(`/panel/${slug}/agenda`);
     revalidatePath(`/panel/${slug}/ventas`);
     return exito({
       folio: String(venta?.folio ?? ''),

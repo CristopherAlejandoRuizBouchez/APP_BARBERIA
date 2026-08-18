@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ExternalLink, MessageCircle, Pencil, Plus } from 'lucide-react';
+import { CalendarDays, Clock, ExternalLink, MessageCircle, Pencil, Plus } from 'lucide-react';
 import { Boton } from '@/components/ui/boton';
 import { AreaTexto, Campo, Entrada, EntradaImporte, EntradaTelefono } from '@/components/ui/campo';
 import {
@@ -65,6 +65,33 @@ const MODULOS_RECEPCION = new Set(['agenda', 'pos', 'ventas', 'pedidos', 'client
 
 const ESTILO_SELECT =
   'h-10 w-full rounded-sm border border-[var(--borde)] bg-[var(--fondo)] px-3 text-sm';
+
+const UUID_VALIDO = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function claveLocal(fecha: Date, zonaHoraria: string): string {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zonaHoraria,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(fecha);
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((parte) => parte.type === tipo)?.value ?? '';
+  return `${valor('year')}-${valor('month')}-${valor('day')}`;
+}
+
+function tituloDia(indice: number, fecha: Date, zonaHoraria: string): string {
+  if (indice === 0) return 'Hoy';
+  if (indice === 1) return 'Mañana';
+  if (indice === 2) return 'Pasado mañana';
+  const texto = new Intl.DateTimeFormat('es-MX', {
+    timeZone: zonaHoraria,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(fecha);
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
 
 function Aviso({ guardado, error }: { guardado?: string; error?: string }) {
   if (!guardado && !error) return null;
@@ -170,7 +197,7 @@ export default async function ModuloPanel({
   searchParams,
 }: {
   params: Promise<{ organizationSlug: string; modulo: string }>;
-  searchParams: Promise<{ guardado?: string; error?: string; editar?: string }>;
+  searchParams: Promise<{ guardado?: string; error?: string; editar?: string; cita?: string }>;
 }) {
   const { organizationSlug, modulo } = await params;
   const avisos = await searchParams;
@@ -215,7 +242,8 @@ export default async function ModuloPanel({
   const marcarWhatsappOrg = marcarWhatsappEnviado.bind(null, organizationSlug);
 
   if (modulo === 'pos') {
-    const [productos, servicios, sucursales, barberos] = await Promise.all([
+    const citaId = avisos.cita && UUID_VALIDO.test(avisos.cita) ? avisos.cita : null;
+    const [productos, servicios, sucursales, barberos, cita] = await Promise.all([
       supabase
         .from('products')
         .select('id, nombre, sku, marca, precio_venta_centavos')
@@ -240,7 +268,35 @@ export default async function ModuloPanel({
         .eq('organization_id', orgId)
         .eq('activo', true)
         .order('nombre'),
+      citaId
+        ? supabase
+            .from('appointments')
+            .select(
+              'id, folio, cliente_id, barbero_id, estado, customers(nombre), appointment_services(servicio_id, nombre_congelado, precio_centavos, duracion_minutos, orden)'
+            )
+            .eq('organization_id', orgId)
+            .eq('id', citaId)
+            .in('estado', ['pendiente', 'confirmada', 'en_proceso'])
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
+    const serviciosDeCita = (
+      (cita.data?.appointment_services ?? []) as unknown as Array<{
+        servicio_id: string | null;
+        nombre_congelado: string;
+        precio_centavos: number;
+        duracion_minutos: number;
+        orden: number;
+      }>
+    )
+      .filter((servicio) => Boolean(servicio.servicio_id))
+      .sort((a, b) => a.orden - b.orden)
+      .map((servicio) => ({
+        id: servicio.servicio_id as string,
+        nombre: servicio.nombre_congelado,
+        precioCentavos: servicio.precio_centavos,
+        duracionMinutos: servicio.duracion_minutos,
+      }));
     return (
       <div className="space-y-5">
         <Encabezado
@@ -248,6 +304,7 @@ export default async function ModuloPanel({
           descripcion="Selecciona servicios o productos y registra el pago."
         />
         <PuntoVenta
+          key={cita.data?.id ?? 'mostrador'}
           slug={organizationSlug}
           articulos={[
             ...(servicios.data ?? []).map((s) => ({
@@ -267,21 +324,48 @@ export default async function ModuloPanel({
           ]}
           sucursales={sucursales.data ?? []}
           barberos={barberos.data ?? []}
+          citaInicial={
+            cita.data
+              ? {
+                  id: cita.data.id,
+                  folio: cita.data.folio,
+                  clienteId: cita.data.cliente_id,
+                  clienteNombre:
+                    (cita.data.customers as unknown as { nombre?: string } | null)?.nombre ??
+                    'Cliente',
+                  barberoId: cita.data.barbero_id,
+                  servicios: serviciosDeCita,
+                }
+              : undefined
+          }
         />
       </div>
     );
   }
 
   if (modulo === 'agenda' || modulo === 'mi-agenda') {
+    const zonaHoraria = organizacion.zona_horaria || 'America/Mexico_City';
+    const ahora = new Date();
+    const dias = Array.from({ length: 7 }, (_, indice) => {
+      const fecha = new Date(ahora.getTime() + indice * 86_400_000);
+      return {
+        indice,
+        fecha,
+        clave: claveLocal(fecha, zonaHoraria),
+        titulo: tituloDia(indice, fecha, zonaHoraria),
+      };
+    });
     let consulta = supabase
       .from('appointments')
       .select(
-        'id, folio, fecha_hora_inicio, fecha_hora_fin, estado, total_centavos, customers(nombre, telefono), barbers(nombre)'
+        'id, folio, fecha_hora_inicio, fecha_hora_fin, estado, total_centavos, customers(nombre, telefono), barbers(nombre), appointment_services(nombre_congelado, precio_centavos, duracion_minutos, orden)'
       )
       .eq('organization_id', orgId)
-      .gte('fecha_hora_inicio', new Date(Date.now() - 86400000).toISOString())
+      .in('estado', ['pendiente', 'confirmada'])
+      .gte('fecha_hora_inicio', new Date(ahora.getTime() - 86_400_000).toISOString())
+      .lt('fecha_hora_inicio', new Date(ahora.getTime() + 8 * 86_400_000).toISOString())
       .order('fecha_hora_inicio')
-      .limit(100);
+      .limit(200);
     if (modulo === 'mi-agenda') {
       const { data: barbero } = await supabase
         .from('barbers')
@@ -292,63 +376,110 @@ export default async function ModuloPanel({
       if (barbero) consulta = consulta.eq('barbero_id', barbero.id);
     }
     const { data } = await consulta;
+    const citasPorDia = new Map<string, typeof data>();
+    for (const dia of dias) citasPorDia.set(dia.clave, []);
+    for (const cita of data ?? []) {
+      const clave = claveLocal(new Date(cita.fecha_hora_inicio), zonaHoraria);
+      const grupo = citasPorDia.get(clave);
+      if (grupo) grupo.push(cita);
+    }
     return (
       <div className="space-y-5">
         <Encabezado
           titulo={modulo === 'mi-agenda' ? 'Mi agenda' : 'Agenda'}
-          descripcion="Consulta las próximas citas y actualiza su estado."
+          descripcion="Tus próximas citas, organizadas por día para los siguientes 7 días."
           publico={`${basePublica}/reservar`}
         />
         <Aviso {...avisos} />
-        <Tarjeta>
-          {data?.length ? (
-            <Tabla encabezados={['Fecha', 'Folio / cliente', 'Barbero', 'Total', 'Estado']}>
-              {data.map((c) => (
-                <tr key={c.id}>
-                  <td className="px-4 py-3">
-                    {new Date(c.fecha_hora_inicio).toLocaleString('es-MX')}
-                  </td>
-                  <td className="px-4 py-3">
-                    <strong>{c.folio}</strong>
-                    <span className="block text-xs text-[var(--texto-tenue)]">
-                      {(c.customers as unknown as { nombre?: string })?.nombre}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {(c.barbers as unknown as { nombre?: string })?.nombre}
-                  </td>
-                  <td className="cifras px-4 py-3">{formatearMXN(c.total_centavos)}</td>
-                  <td className="px-4 py-3">
-                    {modulo === 'agenda' ? (
-                      <form action={cambiarEstadoOrg} className="flex gap-2">
-                        <input type="hidden" name="modulo" value="agenda" />
-                        <input type="hidden" name="id" value={c.id} />
-                        <select
-                          name="estado"
-                          defaultValue={c.estado}
-                          className="h-8 border bg-[var(--fondo)] px-2 text-xs"
+        <div className="space-y-4">
+          {dias.map((dia) => {
+            const citas = citasPorDia.get(dia.clave) ?? [];
+            return (
+              <Tarjeta key={dia.clave} destacada={dia.indice === 0 && citas.length > 0}>
+                <TarjetaCabecera className="flex-row items-center justify-between border-b border-[var(--borde)]">
+                  <div className="flex items-center gap-3">
+                    <CalendarDays className="size-5 text-dorado" aria-hidden="true" />
+                    <div>
+                      <TarjetaTitulo>{dia.titulo}</TarjetaTitulo>
+                      <p className="text-xs capitalize text-[var(--texto-tenue)]">
+                        {new Intl.DateTimeFormat('es-MX', {
+                          timeZone: zonaHoraria,
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        }).format(dia.fecha)}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="cifras text-sm text-[var(--texto-suave)]">
+                    {citas.length} {citas.length === 1 ? 'cita' : 'citas'}
+                  </span>
+                </TarjetaCabecera>
+                {citas.length ? (
+                  <div className="divide-y divide-[var(--borde)]">
+                    {citas.map((cita) => {
+                      const servicios = (cita.appointment_services ?? []) as unknown as Array<{
+                        nombre_congelado: string;
+                        orden: number;
+                      }>;
+                      return (
+                        <div
+                          key={cita.id}
+                          className="grid items-center gap-4 p-5 md:grid-cols-[7rem_minmax(12rem,1fr)_minmax(8rem,0.6fr)_7rem_auto]"
                         >
-                          <option value="pendiente">Pendiente</option>
-                          <option value="confirmada">Confirmada</option>
-                          <option value="en_proceso">En proceso</option>
-                          <option value="completada">Completada</option>
-                          <option value="no_asistio">No asistió</option>
-                        </select>
-                        <Boton tamano="sm" variante="sutil">
-                          Aplicar
-                        </Boton>
-                      </form>
-                    ) : (
-                      <span className="uppercase text-dorado">{c.estado}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </Tabla>
-          ) : (
-            <CeldaVacia texto="No hay citas próximas." />
-          )}
-        </Tarjeta>
+                          <div>
+                            <p className="cifras flex items-center gap-2 text-base font-semibold">
+                              <Clock className="size-4 text-dorado" aria-hidden="true" />
+                              {new Intl.DateTimeFormat('es-MX', {
+                                timeZone: zonaHoraria,
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              }).format(new Date(cita.fecha_hora_inicio))}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--texto-tenue)]">{cita.folio}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {(cita.customers as unknown as { nombre?: string } | null)?.nombre ??
+                                'Cliente'}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--texto-suave)]">
+                              {servicios
+                                .sort((a, b) => a.orden - b.orden)
+                                .map((servicio) => servicio.nombre_congelado)
+                                .join(' · ') || 'Servicio reservado'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[var(--texto-tenue)]">Barbero</p>
+                            <p className="mt-1 text-sm">
+                              {(cita.barbers as unknown as { nombre?: string } | null)?.nombre ??
+                                '—'}
+                            </p>
+                          </div>
+                          <p className="cifras font-semibold text-dorado">
+                            {formatearMXN(cita.total_centavos)}
+                          </p>
+                          {modulo === 'agenda' ? (
+                            <Boton comoHijo variante="acento" tamano="sm">
+                              <Link href={`/panel/${organizationSlug}/pos?cita=${cita.id}`}>
+                                Realizada y cobrar
+                              </Link>
+                            </Boton>
+                          ) : (
+                            <span className="text-xs uppercase text-dorado">Pendiente</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <CeldaVacia texto="Sin citas para este día." />
+                )}
+              </Tarjeta>
+            );
+          })}
+        </div>
       </div>
     );
   }
