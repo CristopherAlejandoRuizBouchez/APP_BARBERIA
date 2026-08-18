@@ -26,24 +26,24 @@ export default async function Galeria({ params }: { params: Promise<{ slug: stri
         Conoce algunos de nuestros cortes, estilos y acabados realizados en la barbería.
       </p>
       {data?.length ? (
-        <div className="mt-10 columns-1 gap-4 sm:columns-2 lg:columns-3">
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {data.map((g) => (
             <figure
               key={g.id}
-              className="group mb-4 break-inside-avoid overflow-hidden border"
+              className="group flex h-full flex-col overflow-hidden border"
               style={{
                 borderColor: 'var(--tema-borde)',
                 background: 'var(--tema-superficie)',
                 borderRadius: 'var(--tema-radio)',
               }}
             >
-              <div className="overflow-hidden">
+              <div className="aspect-[4/3] w-full overflow-hidden bg-[var(--tema-fondo)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={g.imagen_url}
                   alt={g.titulo ?? 'Trabajo de barbería'}
                   loading="lazy"
-                  className="h-auto w-full transition-transform duration-500 group-hover:scale-[1.025]"
+                  className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.025]"
                 />
               </div>
               {g.titulo ? (

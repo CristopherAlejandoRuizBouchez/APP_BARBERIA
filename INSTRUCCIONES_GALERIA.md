@@ -10,6 +10,7 @@
 - Opción para publicar u ocultar cada fotografía.
 - Eliminación de la fotografía y de su registro.
 - Presentación pública tipo portafolio, adaptable a celular y computadora.
+- Fotografías ajustadas a cajas uniformes en proporción 4:3, sin deformarse.
 
 La galería utiliza la tabla `gallery_items` y el bucket `publico` que Barbería OS
 ya tiene configurados. **No necesita una migración nueva de Supabase.**
