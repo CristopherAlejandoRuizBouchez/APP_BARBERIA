@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { CalendarCheck2, Menu, X } from 'lucide-react';
 import { Boton } from '@/components/ui/boton';
 import { cn } from '@/lib/utils';
 import type { FormaNavegacion } from '@/lib/temas/plantillas';
@@ -129,6 +129,11 @@ export function CabeceraPublica({
               <span className="w-24 md:hidden" />
               <div className="flex flex-1 justify-center md:justify-start">{Marca}</div>
               <div className="flex items-center gap-3">
+                <Boton comoHijo variante="sutil" tamano="sm" className="hidden sm:inline-flex">
+                  <Link href={`${base}/mi-cita`}>
+                    <CalendarCheck2 className="size-4" /> Mis citas
+                  </Link>
+                </Boton>
                 <Boton comoHijo variante="contorno" tamano="sm" className="hidden sm:inline-flex">
                   <Link href={`${base}/reservar`}>Reservar</Link>
                 </Boton>
@@ -151,6 +156,11 @@ export function CabeceraPublica({
             {Marca}
             {Menu_}
             <div className="flex items-center gap-3">
+              <Boton comoHijo variante="sutil" tamano="sm" className="hidden sm:inline-flex">
+                <Link href={`${base}/mi-cita`}>
+                  <CalendarCheck2 className="size-4" /> Mis citas
+                </Link>
+              </Boton>
               <Boton comoHijo variante="contorno" tamano="sm" className="hidden sm:inline-flex">
                 <Link href={`${base}/reservar`}>Reservar</Link>
               </Boton>
@@ -188,6 +198,11 @@ export function CabeceraPublica({
           ))}
         </nav>
         <div className="mt-8 flex flex-col gap-3">
+          <Boton comoHijo variante="contorno" tamano="lg" ancho="completo">
+            <Link href={`${base}/mi-cita`}>
+              <CalendarCheck2 className="size-4" /> Mis citas
+            </Link>
+          </Boton>
           <Boton comoHijo variante="primario" tamano="lg" ancho="completo">
             <Link href={`${base}/reservar`}>Reservar cita</Link>
           </Boton>

@@ -21,13 +21,11 @@ export default async function MiCita({
     <div className="mx-auto w-full px-5 py-16" style={{ maxWidth: 'var(--tema-ancho)' }}>
       <div className="mx-auto mb-9 max-w-xl text-center">
         <p className="etiqueta" style={{ color: 'var(--tema-primario)' }}>
-          Autogestión
+          Tu espacio
         </p>
-        <h1 className="mt-3 font-[family-name:var(--tema-fuente-titulos)] text-5xl">
-          Consulta tu cita
-        </h1>
+        <h1 className="mt-3 font-[family-name:var(--tema-fuente-titulos)] text-5xl">Mis citas</h1>
         <p className="mt-3" style={{ color: 'var(--tema-texto-suave)' }}>
-          El enlace privado permite verla o cancelarla dentro del plazo de la barbería.
+          Si reservaste desde este dispositivo, tu próxima cita aparecerá automáticamente.
         </p>
       </div>
       <GestorCita

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CalendarDays, Check, CheckCircle2, Clock3, Copy, MessageCircle } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock3 } from 'lucide-react';
 import { crearCitaPublica } from '@/app/b/[slug]/acciones';
 import { Boton } from '@/components/ui/boton';
 import { AreaTexto, Campo, Entrada, EntradaTelefono } from '@/components/ui/campo';
@@ -52,7 +52,6 @@ export function FormularioReserva({
     esExpress?: boolean;
     servicios?: Array<{ id: string; nombre: string; precioCentavos: number }>;
   } | null>(null);
-  const [copiado, setCopiado] = React.useState(false);
   const [enviando, iniciar] = React.useTransition();
   const serviciosSeleccionados = servicios.filter((servicio) => serviceIds.includes(servicio.id));
   const subtotalCentavos = serviciosSeleccionados.reduce(
@@ -130,20 +129,6 @@ export function FormularioReserva({
     });
   }
 
-  function enlacePrivado(token: string) {
-    return `${window.location.origin}/b/${slug}/mi-cita?token=${encodeURIComponent(token)}`;
-  }
-
-  async function copiarEnlace(token: string) {
-    try {
-      await navigator.clipboard.writeText(enlacePrivado(token));
-      setCopiado(true);
-      window.setTimeout(() => setCopiado(false), 2500);
-    } catch {
-      window.prompt('Copia el enlace privado de tu cita:', enlacePrivado(token));
-    }
-  }
-
   if (resultado?.ok) {
     return (
       <div
@@ -152,7 +137,7 @@ export function FormularioReserva({
       >
         <CheckCircle2 className="mx-auto size-10" style={{ color: 'var(--tema-primario)' }} />
         <h2 className="mt-5 font-[family-name:var(--tema-fuente-titulos)] text-3xl">
-          Cita solicitada
+          Cita registrada
         </h2>
         <p className="mt-3 leading-relaxed" style={{ color: 'var(--tema-texto-suave)' }}>
           {resultado.texto}
@@ -188,40 +173,25 @@ export function FormularioReserva({
           </p>
         </div>
         <p className="mt-3 text-xs" style={{ color: 'var(--tema-texto-suave)' }}>
-          Esta cita quedó guardada en este dispositivo. Conserva el enlace privado para consultarla
-          desde otro teléfono o computadora.
+          La guardamos automáticamente en este dispositivo. Cuando regreses, entra a “Mis citas” y
+          aparecerá sin pedirte códigos ni enviar mensajes.
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {resultado.token ? (
             <Boton comoHijo variante="primario">
               <a href={`/b/${slug}/mi-cita?token=${encodeURIComponent(resultado.token)}`}>
-                Ver y administrar cita
+                Ver mi cita
               </a>
             </Boton>
           ) : null}
-          {resultado.token ? (
-            <Boton variante="contorno" onClick={() => copiarEnlace(resultado.token!)}>
-              {copiado ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copiado ? 'Enlace copiado' : 'Copiar enlace'}
-            </Boton>
-          ) : null}
-          {resultado.token ? (
-            <Boton comoHijo variante="contorno">
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(
-                  `Mi cita ${resultado.folio ?? ''}: ${enlacePrivado(resultado.token)}`
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <MessageCircle className="size-4" />
-                Enviar por WhatsApp
-              </a>
-            </Boton>
-          ) : null}
-          <Boton variante="contorno" onClick={() => setResultado(null)}>
-            Reservar otra
+          <Boton comoHijo variante="contorno">
+            <a href={`/b/${slug}`}>Volver al inicio</a>
           </Boton>
+          <div className="sm:col-span-2">
+            <Boton variante="sutil" ancho="completo" onClick={() => setResultado(null)}>
+              Reservar otra cita
+            </Boton>
+          </div>
         </div>
       </div>
     );

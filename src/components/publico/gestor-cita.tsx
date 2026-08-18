@@ -1,14 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { CalendarDays, Scissors, UserRound } from 'lucide-react';
+import { CalendarDays, CalendarPlus, Clock3, Scissors, UserRound } from 'lucide-react';
 import {
   cancelarCitaPublica,
   consultarCitaPublica,
+  recuperarCitaPublica,
   type CitaPublica,
 } from '@/app/b/[slug]/acciones';
 import { Boton } from '@/components/ui/boton';
-import { Campo, Entrada } from '@/components/ui/campo';
+import { Campo, Entrada, EntradaTelefono } from '@/components/ui/campo';
 import {
   guardarCitaEnDispositivo,
   leerCitasGuardadas,
@@ -29,12 +30,39 @@ export function GestorCita({
   const [cita, setCita] = React.useState(citaInicial);
   const [error, setError] = React.useState('');
   const [motivo, setMotivo] = React.useState('Cambio de planes');
+  const [folioBusqueda, setFolioBusqueda] = React.useState('');
+  const [telefonoBusqueda, setTelefonoBusqueda] = React.useState('');
   const [citasGuardadas, setCitasGuardadas] = React.useState<CitaGuardada[]>([]);
+  const [inicializando, setInicializando] = React.useState(!citaInicial && !tokenInicial);
+  const [ahora, setAhora] = React.useState(() => Date.now());
   const [procesando, iniciar] = React.useTransition();
 
   React.useEffect(() => {
-    setCitasGuardadas(leerCitasGuardadas(slug));
-  }, [slug]);
+    const guardadas = leerCitasGuardadas(slug);
+    setCitasGuardadas(guardadas);
+    if (citaInicial || tokenInicial || !guardadas[0]) {
+      setInicializando(false);
+      return;
+    }
+
+    const guardada = guardadas[0];
+    setToken(guardada.token);
+    iniciar(async () => {
+      const resultado = await consultarCitaPublica(slug, guardada.token);
+      if (resultado.ok) {
+        setCita(resultado.datos);
+        setError('');
+      } else {
+        setError('No pudimos abrir automáticamente la cita guardada. Puedes buscarla abajo.');
+      }
+      setInicializando(false);
+    });
+  }, [citaInicial, slug, tokenInicial]);
+
+  React.useEffect(() => {
+    const intervalo = window.setInterval(() => setAhora(Date.now()), 60_000);
+    return () => window.clearInterval(intervalo);
+  }, []);
 
   React.useEffect(() => {
     if (!cita || token.length < 40) return;
@@ -66,6 +94,81 @@ export function GestorCita({
     });
   }
 
+  function recuperar() {
+    setError('');
+    iniciar(async () => {
+      const resultado = await recuperarCitaPublica(slug, {
+        folio: folioBusqueda,
+        telefono: telefonoBusqueda,
+      });
+      if (!resultado.ok) {
+        setError('No encontramos una cita reciente con ese folio y número de WhatsApp.');
+        return;
+      }
+      const detalle = await consultarCitaPublica(slug, resultado.datos.token);
+      if (!detalle.ok) {
+        setError(detalle.mensaje);
+        return;
+      }
+      setToken(resultado.datos.token);
+      setCita(detalle.datos);
+      guardarCitaEnDispositivo(slug, {
+        token: resultado.datos.token,
+        folio: detalle.datos.folio,
+      });
+      setCitasGuardadas(leerCitasGuardadas(slug));
+    });
+  }
+
+  function textoCuentaRegresiva(): string {
+    if (!cita) return '';
+    if (cita.estado === 'completada') return 'Cita realizada';
+    if (cita.estado === 'cancelada') return 'Cita cancelada';
+    const diferencia = new Date(cita.inicio).getTime() - ahora;
+    if (diferencia <= 0) return 'La hora de tu cita ya llegó';
+    const minutos = Math.ceil(diferencia / 60_000);
+    if (minutos < 60) return `Faltan ${minutos} min`;
+    const horas = Math.ceil(minutos / 60);
+    if (horas < 24) return `Faltan ${horas} h`;
+    const dias = Math.ceil(horas / 24);
+    return `Faltan ${dias} ${dias === 1 ? 'día' : 'días'}`;
+  }
+
+  function enlaceCalendario(): string {
+    if (!cita) return '#';
+    const fechaGoogle = (valor: string) =>
+      new Date(valor)
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
+    const parametros = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: `Cita en ${cita.sucursal}`,
+      dates: `${fechaGoogle(cita.inicio)}/${fechaGoogle(cita.fin)}`,
+      details: `${cita.servicios.map((servicio) => servicio.nombre).join(', ')} · Barbero: ${cita.barbero}`,
+      location: cita.sucursal,
+    });
+    return `https://calendar.google.com/calendar/render?${parametros.toString()}`;
+  }
+
+  if (inicializando) {
+    return (
+      <div
+        className="mx-auto max-w-xl border p-8 text-center"
+        style={{ borderColor: 'var(--tema-borde)', background: 'var(--tema-superficie)' }}
+      >
+        <Clock3
+          className="mx-auto size-8 animate-pulse"
+          style={{ color: 'var(--tema-primario)' }}
+        />
+        <p className="mt-4 font-medium">Buscando tus citas guardadas…</p>
+        <p className="mt-2 text-sm" style={{ color: 'var(--tema-texto-suave)' }}>
+          No necesitas iniciar sesión ni escribir ningún código.
+        </p>
+      </div>
+    );
+  }
+
   if (!cita) {
     return (
       <div
@@ -74,7 +177,7 @@ export function GestorCita({
       >
         {citasGuardadas.length ? (
           <div className="mb-7 border-b pb-7" style={{ borderColor: 'var(--tema-borde)' }}>
-            <p className="text-sm font-medium">Citas guardadas en este dispositivo</p>
+            <p className="text-sm font-medium">Tus citas en este dispositivo</p>
             <div className="mt-3 flex flex-col gap-2">
               {citasGuardadas.map((guardada) => (
                 <Boton
@@ -90,25 +193,40 @@ export function GestorCita({
             </div>
           </div>
         ) : null}
-        <Campo
-          etiqueta="Código privado de tu cita"
-          htmlFor="token"
-          ayuda="Está incluido en el enlace privado que guardaste o compartiste al reservar."
-        >
-          <Entrada
-            id="token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            autoComplete="off"
-          />
-        </Campo>
+        <div>
+          <h2 className="font-[family-name:var(--tema-fuente-titulos)] text-2xl">
+            ¿Estás usando otro dispositivo?
+          </h2>
+          <p className="mt-2 text-sm" style={{ color: 'var(--tema-texto-suave)' }}>
+            Escribe el folio y el mismo número de WhatsApp que registraste. No enviaremos ningún
+            mensaje.
+          </p>
+        </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Campo etiqueta="Folio de la cita" htmlFor="folio-cita">
+            <Entrada
+              id="folio-cita"
+              value={folioBusqueda}
+              onChange={(e) => setFolioBusqueda(e.target.value.toUpperCase())}
+              placeholder="BQ-7N39"
+              autoComplete="off"
+            />
+          </Campo>
+          <Campo etiqueta="WhatsApp registrado" htmlFor="telefono-cita">
+            <EntradaTelefono
+              id="telefono-cita"
+              value={telefonoBusqueda}
+              onChange={(e) => setTelefonoBusqueda(e.target.value)}
+            />
+          </Campo>
+        </div>
         {error ? <p className="mt-3 text-sm text-peligro">{error}</p> : null}
         <Boton
           className="mt-5"
-          onClick={() => consultar()}
-          disabled={procesando || token.length < 40}
+          onClick={recuperar}
+          disabled={procesando || folioBusqueda.trim().length < 4 || telefonoBusqueda.length < 10}
         >
-          {procesando ? 'Consultando…' : 'Consultar cita'}
+          {procesando ? 'Buscando…' : 'Buscar mi cita'}
         </Boton>
       </div>
     );
@@ -135,8 +253,27 @@ export function GestorCita({
           className="border px-3 py-1 text-xs uppercase"
           style={{ borderColor: 'var(--tema-primario)' }}
         >
-          {cita.estado}
+          {cita.estado === 'pendiente'
+            ? 'Programada'
+            : cita.estado === 'completada'
+              ? 'Realizada'
+              : cita.estado}
         </span>
+      </div>
+      <div
+        className="mt-5 flex items-center gap-3 border px-4 py-4"
+        style={{
+          borderColor: 'var(--tema-primario)',
+          background: 'color-mix(in srgb, var(--tema-primario) 12%, transparent)',
+        }}
+      >
+        <Clock3 className="size-5 shrink-0" style={{ color: 'var(--tema-primario)' }} />
+        <div>
+          <p className="font-medium">{textoCuentaRegresiva()}</p>
+          <p className="mt-1 text-xs" style={{ color: 'var(--tema-texto-suave)' }}>
+            Tu acceso quedó guardado en este dispositivo para la próxima vez.
+          </p>
+        </div>
       </div>
       <dl className="mt-6 grid gap-5 sm:grid-cols-2">
         <div>
@@ -225,6 +362,13 @@ export function GestorCita({
             </Boton>
           </div>
         </div>
+      ) : null}
+      {cita.estado !== 'cancelada' ? (
+        <Boton comoHijo variante="contorno" className="mt-6">
+          <a href={enlaceCalendario()} target="_blank" rel="noreferrer">
+            <CalendarPlus className="size-4" /> Agregar a mi calendario
+          </a>
+        </Boton>
       ) : null}
       {error ? <p className="mt-4 text-sm text-peligro">{error}</p> : null}
       <button

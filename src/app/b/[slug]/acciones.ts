@@ -154,6 +154,34 @@ export async function consultarCitaPublica(
   }
 }
 
+export async function recuperarCitaPublica(
+  slug: string,
+  entrada: { folio: string; telefono: string }
+): Promise<Resultado<{ token: string }>> {
+  try {
+    const org = await organizacionPorSlug(slug);
+    if (!org) throw new Error('NO_ENCONTRADO');
+    const datos = z
+      .object({
+        folio: z.string().trim().min(4).max(30),
+        telefono,
+      })
+      .parse(entrada);
+    const { data, error } = await crearClientePublico().rpc('fn_recuperar_cita_publica', {
+      p_organization_id: org.id,
+      p_folio: datos.folio,
+      p_telefono: datos.telefono,
+    });
+    if (error) throw error;
+    const recuperacion = Array.isArray(data) ? data[0] : data;
+    const tokenRecuperado = String(recuperacion?.token_acceso ?? '');
+    if (tokenRecuperado.length < 40) throw new Error('NO_ENCONTRADO');
+    return exito({ token: tokenRecuperado });
+  } catch (error) {
+    return fallo(error);
+  }
+}
+
 export async function cancelarCitaPublica(
   slug: string,
   token: string,
