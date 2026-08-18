@@ -47,6 +47,19 @@ function imagenDeOrganizacion(entrada: unknown, organizationId: string): string 
   return imagen;
 }
 
+function rutaDeImagenPublica(imagen: string, organizationId: string): string | null {
+  try {
+    const marcador = '/storage/v1/object/public/publico/';
+    const rutaUrl = decodeURIComponent(new URL(imagen).pathname);
+    const indice = rutaUrl.indexOf(marcador);
+    if (indice < 0) return null;
+    const ruta = rutaUrl.slice(indice + marcador.length);
+    return ruta.startsWith(`${organizationId}/galeria/`) ? ruta : null;
+  } catch {
+    return null;
+  }
+}
+
 async function contextoConPermiso(slug: string, permiso: Permiso) {
   const contexto = await requerirOrganizacion(slug);
   if (!puede(contexto.contexto, permiso)) throw new Error('NO_AUTORIZADO');
@@ -382,6 +395,116 @@ export async function actualizarImagenRegistro(
     revalidatePath(`/panel/${slug}/inventario`);
     revalidatePath(`/b/${slug}`, 'layout');
     return exito({ url });
+  } catch (error) {
+    return fallo(error);
+  }
+}
+
+export async function crearElementoGaleria(
+  slug: string,
+  entrada: { descripcion: string; imagenUrl: string }
+): Promise<Resultado<{ id: string }>> {
+  try {
+    const datos = z
+      .object({
+        descripcion: z.string().trim().min(2).max(180),
+        imagenUrl: z.string().url(),
+      })
+      .parse(entrada);
+    const { supabase, organizacion } = await contextoConPermiso(slug, 'apariencia.editar');
+    const imagenUrl = imagenDeOrganizacion(datos.imagenUrl, organizacion.id);
+    if (!imagenUrl) throw new Error('DATOS_INVALIDOS');
+
+    const { data: ultimo, error: ordenError } = await supabase
+      .from('gallery_items')
+      .select('orden')
+      .eq('organization_id', organizacion.id)
+      .order('orden', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ordenError) throw ordenError;
+
+    const { data, error } = await supabase
+      .from('gallery_items')
+      .insert({
+        organization_id: organizacion.id,
+        titulo: datos.descripcion,
+        imagen_url: imagenUrl,
+        orden: Number(ultimo?.orden ?? -1) + 1,
+        activo: true,
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+
+    revalidatePath(`/panel/${slug}/galeria`);
+    revalidatePath(`/b/${slug}/galeria`);
+    return exito({ id: data.id });
+  } catch (error) {
+    return fallo(error);
+  }
+}
+
+export async function actualizarElementoGaleria(
+  slug: string,
+  entrada: { id: string; descripcion: string; activo: boolean }
+): Promise<Resultado<{ actualizado: true }>> {
+  try {
+    const datos = z
+      .object({
+        id: z.string().uuid(),
+        descripcion: z.string().trim().min(2).max(180),
+        activo: z.boolean(),
+      })
+      .parse(entrada);
+    const { supabase, organizacion } = await contextoConPermiso(slug, 'apariencia.editar');
+    const { data, error } = await supabase
+      .from('gallery_items')
+      .update({ titulo: datos.descripcion, activo: datos.activo })
+      .eq('organization_id', organizacion.id)
+      .eq('id', datos.id)
+      .select('id')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('NO_ENCONTRADO');
+
+    revalidatePath(`/panel/${slug}/galeria`);
+    revalidatePath(`/b/${slug}/galeria`);
+    return exito({ actualizado: true });
+  } catch (error) {
+    return fallo(error);
+  }
+}
+
+export async function eliminarElementoGaleria(
+  slug: string,
+  entrada: { id: string }
+): Promise<Resultado<{ eliminado: true }>> {
+  try {
+    const datos = z.object({ id: z.string().uuid() }).parse(entrada);
+    const { supabase, organizacion } = await contextoConPermiso(slug, 'apariencia.editar');
+    const { data: elemento, error: lecturaError } = await supabase
+      .from('gallery_items')
+      .select('imagen_url')
+      .eq('organization_id', organizacion.id)
+      .eq('id', datos.id)
+      .maybeSingle();
+    if (lecturaError) throw lecturaError;
+    if (!elemento) throw new Error('NO_ENCONTRADO');
+
+    const { error } = await supabase
+      .from('gallery_items')
+      .delete()
+      .eq('organization_id', organizacion.id)
+      .eq('id', datos.id);
+    if (error) throw error;
+
+    const ruta = rutaDeImagenPublica(elemento.imagen_url, organizacion.id);
+    if (ruta) await supabase.storage.from('publico').remove([ruta]);
+
+    revalidatePath(`/panel/${slug}/galeria`);
+    revalidatePath(`/b/${slug}/galeria`);
+    return exito({ eliminado: true });
   } catch (error) {
     return fallo(error);
   }

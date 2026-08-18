@@ -15,15 +15,15 @@ const FORMATOS: Record<string, string> = {
   'image/avif': 'avif',
 };
 
-function validarArchivo(archivo: File): string | null {
+export function validarArchivoPublico(archivo: File): string | null {
   if (!FORMATOS[archivo.type]) return 'Usa una imagen JPG, PNG, WEBP o AVIF.';
   if (archivo.size > 5 * 1024 * 1024) return 'La imagen no puede pesar más de 5 MB.';
   return null;
 }
 
-async function subirImagen(
+export async function subirImagenPublica(
   organizationId: string,
-  carpeta: string,
+  carpeta: 'productos' | 'barberos' | 'galeria',
   archivo: File
 ): Promise<{ url: string; ruta: string }> {
   const extension = FORMATOS[archivo.type];
@@ -61,7 +61,7 @@ export function CampoImagenNueva({
 }: {
   organizationId: string;
   nombreCampo: string;
-  carpeta: 'productos' | 'barberos';
+  carpeta: 'productos' | 'barberos' | 'galeria';
   etiqueta: string;
   ayuda: string;
 }) {
@@ -72,13 +72,13 @@ export function CampoImagenNueva({
 
   async function seleccionar(archivo: File | undefined) {
     if (!archivo) return;
-    const problema = validarArchivo(archivo);
+    const problema = validarArchivoPublico(archivo);
     if (problema) return setMensaje(problema);
 
     setSubiendo(true);
     setMensaje(null);
     try {
-      const imagen = await subirImagen(organizationId, carpeta, archivo);
+      const imagen = await subirImagenPublica(organizationId, carpeta, archivo);
       setUrl(imagen.url);
       setMensaje('Imagen lista. Ya puedes guardar el registro.');
     } catch {
@@ -163,14 +163,14 @@ export function EditorImagenRegistro({
 
   async function seleccionar(archivo: File | undefined) {
     if (!archivo) return;
-    const problema = validarArchivo(archivo);
+    const problema = validarArchivoPublico(archivo);
     if (problema) return setMensaje(problema);
 
     setGuardando(true);
     setMensaje(null);
     let rutaNueva: string | null = null;
     try {
-      const imagen = await subirImagen(
+      const imagen = await subirImagenPublica(
         organizationId,
         tipo === 'producto' ? 'productos' : 'barberos',
         archivo

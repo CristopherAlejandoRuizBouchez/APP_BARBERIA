@@ -16,6 +16,7 @@ import {
   Wallet,
   Palette,
   MessageCircle,
+  Images,
 } from 'lucide-react';
 
 /**
@@ -92,6 +93,7 @@ export const NAVEGACION_PANEL: readonly GrupoNav[] = [
       { href: '/panel/barberos', texto: 'Barberos', icono: Users, roles: SOLO_ADMIN },
       { href: '/panel/equipo', texto: 'Acceso de recepción', icono: Users, roles: SOLO_ADMIN },
       { href: '/panel/apariencia', texto: 'Apariencia', icono: Palette, roles: SOLO_ADMIN },
+      { href: '/panel/galeria', texto: 'Galería', icono: Images, roles: SOLO_ADMIN },
       { href: '/panel/whatsapp', texto: 'WhatsApp', icono: MessageCircle, roles: SOLO_ADMIN },
       { href: '/panel/pagos', texto: 'Plan y pagos', icono: CreditCard, roles: SOLO_ADMIN },
       { href: '/panel/configuracion', texto: 'Configuración', icono: Settings, roles: SOLO_ADMIN },

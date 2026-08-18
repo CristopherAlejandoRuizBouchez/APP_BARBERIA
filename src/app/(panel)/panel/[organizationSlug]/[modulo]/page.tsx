@@ -14,6 +14,7 @@ import { formatearMXN } from '@/lib/dinero';
 import { requerirOrganizacion } from '@/lib/auth/guardas';
 import { PuntoVenta } from '@/components/panel/punto-venta';
 import { EditorApariencia } from '@/components/panel/editor-apariencia';
+import { GestorGaleria } from '@/components/panel/gestor-galeria';
 import { EditorHorarioBarbero } from '@/components/panel/editor-horario-barbero';
 import { BotonEliminarBarbero } from '@/components/panel/boton-eliminar-barbero';
 import { BotonEliminarProducto } from '@/components/panel/boton-eliminar-producto';
@@ -21,6 +22,7 @@ import { CampoImagenNueva, EditorImagenRegistro } from '@/components/panel/gesto
 import { FormularioAccesoRecepcion } from '@/components/panel/formulario-acceso-recepcion';
 import {
   actualizarImagenRegistro,
+  actualizarElementoGaleria,
   cambiarAccesoRecepcion,
   cambiarDisponibilidadBarbero,
   cambiarDisponibilidadProducto,
@@ -34,6 +36,8 @@ import {
   guardarOperacion,
   actualizarServicio,
   crearAccesoRecepcion,
+  crearElementoGaleria,
+  eliminarElementoGaleria,
   marcarWhatsappEnviado,
 } from '../acciones';
 
@@ -56,6 +60,7 @@ const MODULOS = new Set([
   'barberos',
   'equipo',
   'apariencia',
+  'galeria',
   'whatsapp',
   'pagos',
   'configuracion',
@@ -232,6 +237,9 @@ export default async function ModuloPanel({
     organizationSlug
   );
   const actualizarImagenRegistroOrg = actualizarImagenRegistro.bind(null, organizationSlug);
+  const crearElementoGaleriaOrg = crearElementoGaleria.bind(null, organizationSlug);
+  const actualizarElementoGaleriaOrg = actualizarElementoGaleria.bind(null, organizationSlug);
+  const eliminarElementoGaleriaOrg = eliminarElementoGaleria.bind(null, organizationSlug);
   const cambiarEstadoOrg = cambiarEstado.bind(null, organizationSlug);
   const guardarAparienciaOrg = guardarApariencia.bind(null, organizationSlug);
   const guardarHorarioBarberoOrg = guardarHorarioBarbero.bind(null, organizationSlug);
@@ -1303,6 +1311,37 @@ export default async function ModuloPanel({
             <CeldaVacia />
           )}
         </Tarjeta>
+      </div>
+    );
+  }
+
+  if (modulo === 'galeria') {
+    const { data } = await supabase
+      .from('gallery_items')
+      .select('id, titulo, imagen_url, activo, orden')
+      .eq('organization_id', orgId)
+      .order('orden')
+      .order('creado_en', { ascending: false });
+    return (
+      <div className="space-y-5">
+        <Encabezado
+          titulo="Galería"
+          descripcion="Publica fotografías de cortes y trabajos realizados para que los clientes conozcan el estilo de la barbería."
+          publico={`${basePublica}/galeria`}
+        />
+        <Aviso {...avisos} />
+        <GestorGaleria
+          organizationId={orgId}
+          elementos={(data ?? []).map((elemento) => ({
+            id: elemento.id,
+            descripcion: elemento.titulo ?? '',
+            imagenUrl: elemento.imagen_url,
+            activo: elemento.activo,
+          }))}
+          crear={crearElementoGaleriaOrg}
+          actualizar={actualizarElementoGaleriaOrg}
+          eliminar={eliminarElementoGaleriaOrg}
+        />
       </div>
     );
   }
